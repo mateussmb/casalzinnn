@@ -1,13 +1,34 @@
-// Update this page (the content is just a fallback if you fail to update the page)
+import HeroSection from "@/components/wedding/HeroSection";
+import AboutCouple from "@/components/wedding/AboutCouple";
+import VideoSection from "@/components/wedding/VideoSection";
+import WeddingInfo from "@/components/wedding/WeddingInfo";
+import DressCode from "@/components/wedding/DressCode";
+import RSVPSection from "@/components/wedding/RSVPSection";
+import GiftRegistry from "@/components/wedding/GiftRegistry";
+import PhotoGallery from "@/components/wedding/PhotoGallery";
+import MessageWall from "@/components/wedding/MessageWall";
+import Footer from "@/components/wedding/Footer";
 
 const Index = () => {
+  // Configuração do casal - pode ser alimentado por dados do backend
+  const weddingConfig = {
+    // URL do vídeo do casal (opcional - deixe vazio para esconder a seção)
+    videoUrl: "", // Exemplo: "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+  };
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background">
-      <div className="text-center">
-        <h1 className="mb-4 text-4xl font-bold">Welcome to Your Blank App</h1>
-        <p className="text-xl text-muted-foreground">Start building your amazing project here!</p>
-      </div>
-    </div>
+    <main className="overflow-x-hidden">
+      <HeroSection />
+      <AboutCouple />
+      <VideoSection videoUrl={weddingConfig.videoUrl} />
+      <WeddingInfo />
+      <DressCode />
+      <RSVPSection />
+      <GiftRegistry />
+      <PhotoGallery />
+      <MessageWall />
+      <Footer />
+    </main>
   );
 };
 

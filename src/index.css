@@ -2,87 +2,92 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
-All colors MUST be HSL.
-*/
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&display=swap');
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    /* Romantic Wedding Palette */
+    --background: 40 33% 98%;
+    --foreground: 25 30% 20%;
 
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card: 40 40% 97%;
+    --card-foreground: 25 30% 20%;
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
+    --popover: 40 40% 97%;
+    --popover-foreground: 25 30% 20%;
 
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
+    /* Champagne Gold */
+    --primary: 38 50% 55%;
+    --primary-foreground: 40 33% 98%;
 
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
+    /* Soft Beige */
+    --secondary: 35 30% 92%;
+    --secondary-foreground: 25 30% 25%;
 
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
+    /* Warm Cream */
+    --muted: 35 25% 94%;
+    --muted-foreground: 25 15% 45%;
 
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
+    /* Dusty Rose Accent */
+    --accent: 10 35% 85%;
+    --accent-foreground: 25 30% 20%;
 
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
 
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
+    --border: 35 30% 88%;
+    --input: 35 30% 90%;
+    --ring: 38 50% 55%;
 
     --radius: 0.5rem;
 
+    /* Custom Wedding Variables */
+    --gold: 38 60% 50%;
+    --gold-light: 38 50% 75%;
+    --cream: 40 40% 96%;
+    --nude: 25 25% 88%;
+    --rose: 10 40% 80%;
+    --sage: 120 15% 75%;
+    
+    /* Typography */
+    --font-serif: 'Playfair Display', 'Cormorant Garamond', Georgia, serif;
+    --font-sans: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+
+    /* Shadows */
+    --shadow-soft: 0 4px 20px -4px hsl(25 30% 20% / 0.08);
+    --shadow-card: 0 8px 30px -8px hsl(25 30% 20% / 0.1);
+    --shadow-elevated: 0 20px 50px -12px hsl(25 30% 20% / 0.15);
+
     --sidebar-background: 0 0% 98%;
-
     --sidebar-foreground: 240 5.3% 26.1%;
-
     --sidebar-primary: 240 5.9% 10%;
-
     --sidebar-primary-foreground: 0 0% 98%;
-
     --sidebar-accent: 240 4.8% 95.9%;
-
     --sidebar-accent-foreground: 240 5.9% 10%;
-
     --sidebar-border: 220 13% 91%;
-
     --sidebar-ring: 217.2 91.2% 59.8%;
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-
+    --background: 25 20% 10%;
+    --foreground: 40 30% 95%;
+    --card: 25 20% 12%;
+    --card-foreground: 40 30% 95%;
+    --popover: 25 20% 12%;
+    --popover-foreground: 40 30% 95%;
+    --primary: 38 50% 60%;
+    --primary-foreground: 25 20% 10%;
+    --secondary: 25 15% 20%;
+    --secondary-foreground: 40 30% 90%;
+    --muted: 25 15% 18%;
+    --muted-foreground: 35 20% 60%;
+    --accent: 10 30% 25%;
+    --accent-foreground: 40 30% 95%;
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 210 40% 98%;
-
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
+    --border: 25 15% 22%;
+    --input: 25 15% 22%;
+    --ring: 38 50% 60%;
     --sidebar-background: 240 5.9% 10%;
     --sidebar-foreground: 240 4.8% 95.9%;
     --sidebar-primary: 224.3 76.3% 48%;
@@ -100,6 +105,145 @@ All colors MUST be HSL.
   }
 
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground antialiased;
+    font-family: var(--font-sans);
   }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-serif);
+    @apply font-medium tracking-tight;
+  }
+
+  .font-serif {
+    font-family: var(--font-serif);
+  }
+
+  .font-sans {
+    font-family: var(--font-sans);
+  }
+}
+
+@layer components {
+  .section-container {
+    @apply max-w-6xl mx-auto px-4 sm:px-6 lg:px-8;
+  }
+
+  .section-title {
+    font-family: var(--font-serif);
+    @apply text-3xl sm:text-4xl lg:text-5xl font-medium text-foreground tracking-tight;
+  }
+
+  .section-subtitle {
+    @apply text-muted-foreground text-lg sm:text-xl font-light mt-4;
+  }
+
+  .gold-accent {
+    color: hsl(var(--gold));
+  }
+
+  .gold-divider {
+    @apply w-20 h-px mx-auto;
+    background: linear-gradient(90deg, transparent, hsl(var(--gold)), transparent);
+  }
+
+  .card-wedding {
+    @apply bg-card rounded-lg p-6 sm:p-8;
+    box-shadow: var(--shadow-card);
+  }
+
+  .btn-wedding {
+    @apply inline-flex items-center justify-center px-8 py-3 text-base font-medium rounded-full transition-all duration-300;
+    background: hsl(var(--gold));
+    color: hsl(var(--background));
+  }
+
+  .btn-wedding:hover {
+    background: hsl(var(--gold-light));
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-elevated);
+  }
+
+  .btn-wedding-outline {
+    @apply inline-flex items-center justify-center px-8 py-3 text-base font-medium rounded-full transition-all duration-300 border-2;
+    border-color: hsl(var(--gold));
+    color: hsl(var(--gold));
+    background: transparent;
+  }
+
+  .btn-wedding-outline:hover {
+    background: hsl(var(--gold));
+    color: hsl(var(--background));
+  }
+
+  .input-wedding {
+    @apply w-full px-4 py-3 rounded-lg border bg-background text-foreground transition-all duration-200;
+    border-color: hsl(var(--border));
+  }
+
+  .input-wedding:focus {
+    @apply outline-none ring-2;
+    ring-color: hsl(var(--gold) / 0.3);
+    border-color: hsl(var(--gold));
+  }
+
+  .textarea-wedding {
+    @apply input-wedding resize-none min-h-[120px];
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .animate-fade-up {
+    animation: fadeUp 0.8s ease-out forwards;
+  }
+
+  .animate-fade-in {
+    animation: fadeIn 0.6s ease-out forwards;
+  }
+
+  @keyframes fadeUp {
+    from {
+      opacity: 0;
+      transform: translateY(30px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+}
+
+/* Smooth scrolling */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: hsl(var(--muted));
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--gold-light));
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--gold));
 }
