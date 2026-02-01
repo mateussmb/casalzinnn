@@ -14,13 +14,394 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      gallery_images: {
+        Row: {
+          caption: string | null
+          created_at: string
+          display_order: number
+          id: string
+          image_url: string
+          wedding_id: string
+        }
+        Insert: {
+          caption?: string | null
+          created_at?: string
+          display_order?: number
+          id?: string
+          image_url: string
+          wedding_id: string
+        }
+        Update: {
+          caption?: string | null
+          created_at?: string
+          display_order?: number
+          id?: string
+          image_url?: string
+          wedding_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gallery_images_wedding_id_fkey"
+            columns: ["wedding_id"]
+            isOneToOne: false
+            referencedRelation: "weddings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      gifts: {
+        Row: {
+          category: string
+          created_at: string
+          external_link: string | null
+          id: string
+          image_url: string | null
+          name: string
+          price: number
+          wedding_id: string
+        }
+        Insert: {
+          category?: string
+          created_at?: string
+          external_link?: string | null
+          id?: string
+          image_url?: string | null
+          name: string
+          price: number
+          wedding_id: string
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          external_link?: string | null
+          id?: string
+          image_url?: string | null
+          name?: string
+          price?: number
+          wedding_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gifts_wedding_id_fkey"
+            columns: ["wedding_id"]
+            isOneToOne: false
+            referencedRelation: "weddings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      messages: {
+        Row: {
+          created_at: string
+          guest_name: string
+          id: string
+          message: string
+          wedding_id: string
+        }
+        Insert: {
+          created_at?: string
+          guest_name: string
+          id?: string
+          message: string
+          wedding_id: string
+        }
+        Update: {
+          created_at?: string
+          guest_name?: string
+          id?: string
+          message?: string
+          wedding_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "messages_wedding_id_fkey"
+            columns: ["wedding_id"]
+            isOneToOne: false
+            referencedRelation: "weddings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      order_items: {
+        Row: {
+          created_at: string
+          gift_id: string | null
+          gift_name: string
+          id: string
+          order_id: string
+          quantity: number
+          unit_price: number
+        }
+        Insert: {
+          created_at?: string
+          gift_id?: string | null
+          gift_name: string
+          id?: string
+          order_id: string
+          quantity?: number
+          unit_price: number
+        }
+        Update: {
+          created_at?: string
+          gift_id?: string | null
+          gift_name?: string
+          id?: string
+          order_id?: string
+          quantity?: number
+          unit_price?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_items_gift_id_fkey"
+            columns: ["gift_id"]
+            isOneToOne: false
+            referencedRelation: "gifts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_items_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      orders: {
+        Row: {
+          created_at: string
+          guest_email: string | null
+          guest_name: string
+          id: string
+          mercado_pago_payment_id: string | null
+          mercado_pago_preference_id: string | null
+          status: string
+          total_amount: number
+          updated_at: string
+          wedding_id: string
+        }
+        Insert: {
+          created_at?: string
+          guest_email?: string | null
+          guest_name: string
+          id?: string
+          mercado_pago_payment_id?: string | null
+          mercado_pago_preference_id?: string | null
+          status?: string
+          total_amount: number
+          updated_at?: string
+          wedding_id: string
+        }
+        Update: {
+          created_at?: string
+          guest_email?: string | null
+          guest_name?: string
+          id?: string
+          mercado_pago_payment_id?: string | null
+          mercado_pago_preference_id?: string | null
+          status?: string
+          total_amount?: number
+          updated_at?: string
+          wedding_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "orders_wedding_id_fkey"
+            columns: ["wedding_id"]
+            isOneToOne: false
+            referencedRelation: "weddings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          email: string | null
+          full_name: string | null
+          id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          email?: string | null
+          full_name?: string | null
+          id?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          email?: string | null
+          full_name?: string | null
+          id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      rsvp_responses: {
+        Row: {
+          attendance: string
+          created_at: string
+          dietary_restrictions: string | null
+          guest_email: string | null
+          guest_name: string
+          guests_count: number
+          id: string
+          message: string | null
+          wedding_id: string
+        }
+        Insert: {
+          attendance: string
+          created_at?: string
+          dietary_restrictions?: string | null
+          guest_email?: string | null
+          guest_name: string
+          guests_count?: number
+          id?: string
+          message?: string | null
+          wedding_id: string
+        }
+        Update: {
+          attendance?: string
+          created_at?: string
+          dietary_restrictions?: string | null
+          guest_email?: string | null
+          guest_name?: string
+          guests_count?: number
+          id?: string
+          message?: string | null
+          wedding_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rsvp_responses_wedding_id_fkey"
+            columns: ["wedding_id"]
+            isOneToOne: false
+            referencedRelation: "weddings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      weddings: {
+        Row: {
+          about_text: string | null
+          additional_info: string | null
+          ceremony_address: string | null
+          ceremony_date: string | null
+          ceremony_location: string | null
+          ceremony_time: string | null
+          colors_to_avoid: string | null
+          couple_name: string
+          created_at: string
+          dress_code_text: string | null
+          hero_image_url: string | null
+          id: string
+          layout: string
+          mercado_pago_access_token: string | null
+          mercado_pago_public_key: string | null
+          partner1_name: string
+          partner2_name: string
+          reception_address: string | null
+          reception_location: string | null
+          reception_time: string | null
+          section_about: boolean
+          section_dress_code: boolean
+          section_gallery: boolean
+          section_gifts: boolean
+          section_message_wall: boolean
+          section_rsvp: boolean
+          section_video: boolean
+          section_wedding_info: boolean
+          slug: string | null
+          tagline: string | null
+          updated_at: string
+          user_id: string
+          video_url: string | null
+          wedding_date: string | null
+        }
+        Insert: {
+          about_text?: string | null
+          additional_info?: string | null
+          ceremony_address?: string | null
+          ceremony_date?: string | null
+          ceremony_location?: string | null
+          ceremony_time?: string | null
+          colors_to_avoid?: string | null
+          couple_name: string
+          created_at?: string
+          dress_code_text?: string | null
+          hero_image_url?: string | null
+          id?: string
+          layout?: string
+          mercado_pago_access_token?: string | null
+          mercado_pago_public_key?: string | null
+          partner1_name?: string
+          partner2_name?: string
+          reception_address?: string | null
+          reception_location?: string | null
+          reception_time?: string | null
+          section_about?: boolean
+          section_dress_code?: boolean
+          section_gallery?: boolean
+          section_gifts?: boolean
+          section_message_wall?: boolean
+          section_rsvp?: boolean
+          section_video?: boolean
+          section_wedding_info?: boolean
+          slug?: string | null
+          tagline?: string | null
+          updated_at?: string
+          user_id: string
+          video_url?: string | null
+          wedding_date?: string | null
+        }
+        Update: {
+          about_text?: string | null
+          additional_info?: string | null
+          ceremony_address?: string | null
+          ceremony_date?: string | null
+          ceremony_location?: string | null
+          ceremony_time?: string | null
+          colors_to_avoid?: string | null
+          couple_name?: string
+          created_at?: string
+          dress_code_text?: string | null
+          hero_image_url?: string | null
+          id?: string
+          layout?: string
+          mercado_pago_access_token?: string | null
+          mercado_pago_public_key?: string | null
+          partner1_name?: string
+          partner2_name?: string
+          reception_address?: string | null
+          reception_location?: string | null
+          reception_time?: string | null
+          section_about?: boolean
+          section_dress_code?: boolean
+          section_gallery?: boolean
+          section_gifts?: boolean
+          section_message_wall?: boolean
+          section_rsvp?: boolean
+          section_video?: boolean
+          section_wedding_info?: boolean
+          slug?: string | null
+          tagline?: string | null
+          updated_at?: string
+          user_id?: string
+          video_url?: string | null
+          wedding_date?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      generate_wedding_slug: { Args: { couple_name: string }; Returns: string }
     }
     Enums: {
       [_ in never]: never

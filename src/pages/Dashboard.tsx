@@ -1,17 +1,22 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { 
   Settings, Eye, Heart, Calendar, Image, Gift, 
   MessageSquare, Users, Camera, Video, Shirt, 
-  Plus, Trash2, Edit2, Save, X, ExternalLink, ChevronRight
+  Plus, Trash2, Edit2, Save, ChevronRight, LogOut,
+  CreditCard, Link2, Copy, Check, ExternalLink, Info,
+  Loader2
 } from "lucide-react";
 import { useWedding, Gift as GiftType } from "@/contexts/WeddingContext";
+import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { useToast } from "@/hooks/use-toast";
 import {
   Dialog,
   DialogContent,
@@ -26,6 +31,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 const layoutOptions = [
   {
@@ -63,9 +73,15 @@ const categories = ["Cozinha", "Quarto", "Sala", "Banheiro", "Casa", "Eletrônic
 
 const Dashboard = () => {
   const navigate = useNavigate();
+  const { toast } = useToast();
+  const { user, signOut } = useAuth();
   const { config, updateConfig, addGift, updateGift, removeGift, toggleSection } = useWedding();
+  
   const [editingGift, setEditingGift] = useState<GiftType | null>(null);
   const [isAddingGift, setIsAddingGift] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [weddingSlug, setWeddingSlug] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
   const [newGift, setNewGift] = useState({
     name: "",
     category: "Cozinha",
@@ -73,6 +89,214 @@ const Dashboard = () => {
     image: "",
     externalLink: "",
   });
+
+  // Mercado Pago credentials
+  const [mercadoPagoPublicKey, setMercadoPagoPublicKey] = useState("");
+  const [mercadoPagoAccessToken, setMercadoPagoAccessToken] = useState("");
+
+  // Load existing wedding data
+  useEffect(() => {
+    const loadWeddingData = async () => {
+      if (!user) return;
+
+      const { data: wedding } = await supabase
+        .from("weddings")
+        .select("*")
+        .eq("user_id", user.id)
+        .single();
+
+      if (wedding) {
+        setWeddingSlug(wedding.slug);
+        setMercadoPagoPublicKey(wedding.mercado_pago_public_key || "");
+        setMercadoPagoAccessToken(wedding.mercado_pago_access_token || "");
+        
+        // Update context with saved data
+        updateConfig({
+          coupleName: wedding.couple_name,
+          weddingDate: wedding.wedding_date || "",
+          tagline: wedding.tagline || "",
+          layout: wedding.layout as "classic" | "modern" | "minimalist",
+          sections: {
+            about: wedding.section_about,
+            weddingInfo: wedding.section_wedding_info,
+            gifts: wedding.section_gifts,
+            rsvp: wedding.section_rsvp,
+            messageWall: wedding.section_message_wall,
+            gallery: wedding.section_gallery,
+            video: wedding.section_video,
+            dressCode: wedding.section_dress_code,
+          },
+          heroImage: wedding.hero_image_url || "",
+          videoUrl: wedding.video_url || "",
+          ceremonyDate: wedding.ceremony_date || "",
+          ceremonyTime: wedding.ceremony_time || "",
+          ceremonyLocation: wedding.ceremony_location || "",
+          ceremonyAddress: wedding.ceremony_address || "",
+          receptionLocation: wedding.reception_location || "",
+          receptionAddress: wedding.reception_address || "",
+          receptionTime: wedding.reception_time || "",
+          aboutText: wedding.about_text || "",
+          dressCodeText: wedding.dress_code_text || "",
+          colorsToAvoid: wedding.colors_to_avoid || "",
+          additionalInfo: wedding.additional_info || "",
+        });
+
+        // Load gifts
+        const { data: gifts } = await supabase
+          .from("gifts")
+          .select("*")
+          .eq("wedding_id", wedding.id);
+
+        if (gifts && gifts.length > 0) {
+          const formattedGifts = gifts.map(g => ({
+            id: g.id,
+            name: g.name,
+            category: g.category,
+            price: Number(g.price),
+            image: g.image_url || "",
+            externalLink: g.external_link || "",
+          }));
+          updateConfig({ gifts: formattedGifts });
+        }
+      }
+    };
+
+    loadWeddingData();
+  }, [user]);
+
+  const generateSlug = (coupleName: string): string => {
+    return coupleName
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9\s-]/g, "")
+      .replace(/\s+/g, "-")
+      .replace(/-+/g, "-")
+      .trim();
+  };
+
+  const handleSave = async () => {
+    if (!user) return;
+
+    setIsSaving(true);
+
+    try {
+      // Check if wedding exists
+      const { data: existingWedding } = await supabase
+        .from("weddings")
+        .select("id, slug")
+        .eq("user_id", user.id)
+        .single();
+
+      let slug = existingWedding?.slug;
+      
+      // Generate slug if new wedding
+      if (!slug) {
+        const baseSlug = generateSlug(config.coupleName);
+        
+        // Check for uniqueness
+        const { data: slugCheck } = await supabase
+          .from("weddings")
+          .select("slug")
+          .eq("slug", baseSlug)
+          .single();
+
+        if (slugCheck) {
+          slug = `${baseSlug}-${Date.now().toString(36)}`;
+        } else {
+          slug = baseSlug;
+        }
+      }
+
+      const weddingData = {
+        user_id: user.id,
+        couple_name: config.coupleName,
+        wedding_date: config.weddingDate || null,
+        tagline: config.tagline || null,
+        slug,
+        layout: config.layout,
+        section_about: config.sections.about,
+        section_wedding_info: config.sections.weddingInfo,
+        section_gifts: config.sections.gifts,
+        section_rsvp: config.sections.rsvp,
+        section_message_wall: config.sections.messageWall,
+        section_gallery: config.sections.gallery,
+        section_video: config.sections.video,
+        section_dress_code: config.sections.dressCode,
+        hero_image_url: config.heroImage || null,
+        video_url: config.videoUrl || null,
+        ceremony_date: config.ceremonyDate || null,
+        ceremony_time: config.ceremonyTime || null,
+        ceremony_location: config.ceremonyLocation || null,
+        ceremony_address: config.ceremonyAddress || null,
+        reception_location: config.receptionLocation || null,
+        reception_address: config.receptionAddress || null,
+        reception_time: config.receptionTime || null,
+        about_text: config.aboutText || null,
+        dress_code_text: config.dressCodeText || null,
+        colors_to_avoid: config.colorsToAvoid || null,
+        additional_info: config.additionalInfo || null,
+        mercado_pago_public_key: mercadoPagoPublicKey || null,
+        mercado_pago_access_token: mercadoPagoAccessToken || null,
+      };
+
+      let weddingId: string;
+
+      if (existingWedding) {
+        // Update
+        const { error } = await supabase
+          .from("weddings")
+          .update(weddingData)
+          .eq("id", existingWedding.id);
+
+        if (error) throw error;
+        weddingId = existingWedding.id;
+      } else {
+        // Insert
+        const { data: newWedding, error } = await supabase
+          .from("weddings")
+          .insert(weddingData)
+          .select("id")
+          .single();
+
+        if (error) throw error;
+        weddingId = newWedding.id;
+      }
+
+      // Save gifts
+      // First delete existing gifts
+      await supabase.from("gifts").delete().eq("wedding_id", weddingId);
+
+      // Insert new gifts
+      if (config.gifts.length > 0) {
+        const giftsToInsert = config.gifts.map(g => ({
+          wedding_id: weddingId,
+          name: g.name,
+          category: g.category,
+          price: g.price,
+          image_url: g.image || null,
+          external_link: g.externalLink || null,
+        }));
+
+        await supabase.from("gifts").insert(giftsToInsert);
+      }
+
+      setWeddingSlug(slug);
+      
+      toast({
+        title: "Salvo com sucesso!",
+        description: `Seu site está disponível em: ${window.location.origin}/${slug}`,
+      });
+    } catch (error: any) {
+      toast({
+        title: "Erro ao salvar",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   const handleSaveNewGift = () => {
     if (newGift.name && newGift.price > 0) {
@@ -89,6 +313,21 @@ const Dashboard = () => {
     }
   };
 
+  const copyLink = () => {
+    if (weddingSlug) {
+      navigator.clipboard.writeText(`${window.location.origin}/${weddingSlug}`);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  const handleLogout = async () => {
+    await signOut();
+    navigate("/");
+  };
+
+  const publicUrl = weddingSlug ? `${window.location.origin}/${weddingSlug}` : null;
+
   return (
     <div className="min-h-screen bg-muted/30">
       {/* Header */}
@@ -104,19 +343,66 @@ const Dashboard = () => {
                 <p className="text-sm text-muted-foreground">Configure seu site de casamento</p>
               </div>
             </div>
-            <Button 
-              onClick={() => navigate("/preview")}
-              className="bg-gold hover:bg-gold-light text-background"
-            >
-              <Eye className="w-4 h-4 mr-2" />
-              Visualizar Site
-              <ChevronRight className="w-4 h-4 ml-1" />
-            </Button>
+            <div className="flex items-center gap-3">
+              <Button 
+                variant="outline"
+                onClick={() => navigate("/preview")}
+              >
+                <Eye className="w-4 h-4 mr-2" />
+                Preview
+              </Button>
+              <Button 
+                onClick={handleSave}
+                disabled={isSaving}
+                className="bg-gold hover:bg-gold-light text-background"
+              >
+                {isSaving ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <Save className="w-4 h-4 mr-2" />
+                )}
+                Salvar e Publicar
+              </Button>
+              <Button variant="ghost" size="icon" onClick={handleLogout}>
+                <LogOut className="w-4 h-4" />
+              </Button>
+            </div>
           </div>
         </div>
       </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+        {/* Published URL */}
+        {publicUrl && (
+          <motion.section
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-gold/10 rounded-xl p-6 border border-gold/20"
+          >
+            <div className="flex items-center justify-between flex-wrap gap-4">
+              <div className="flex items-center gap-3">
+                <Link2 className="w-5 h-5 text-gold" />
+                <div>
+                  <p className="text-sm text-muted-foreground">Seu site está publicado em:</p>
+                  <p className="font-medium text-foreground">{publicUrl}</p>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={copyLink}>
+                  {copied ? <Check className="w-4 h-4 mr-2" /> : <Copy className="w-4 h-4 mr-2" />}
+                  {copied ? "Copiado!" : "Copiar Link"}
+                </Button>
+                <Button size="sm" className="bg-gold hover:bg-gold-light text-background" asChild>
+                  <a href={publicUrl} target="_blank" rel="noopener noreferrer">
+                    <ExternalLink className="w-4 h-4 mr-2" />
+                    Abrir Site
+                  </a>
+                </Button>
+              </div>
+            </div>
+          </motion.section>
+        )}
+
         {/* Section 1: Couple Info */}
         <motion.section
           initial={{ opacity: 0, y: 20 }}
@@ -138,6 +424,9 @@ const Dashboard = () => {
                 placeholder="Ex: Maria & João"
                 className="bg-background"
               />
+              <p className="text-xs text-muted-foreground">
+                Será usado na URL: /{generateSlug(config.coupleName) || "nome-do-casal"}
+              </p>
             </div>
             <div className="space-y-2">
               <Label htmlFor="weddingDate">Data do Casamento</Label>
@@ -224,7 +513,7 @@ const Dashboard = () => {
           </div>
         </motion.section>
 
-        {/* Section 4: Media */}
+        {/* Section 4: Media with dimensions */}
         <motion.section
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -238,7 +527,20 @@ const Dashboard = () => {
           
           <div className="grid sm:grid-cols-2 gap-6">
             <div className="space-y-2">
-              <Label htmlFor="heroImage">URL da Foto Principal</Label>
+              <div className="flex items-center gap-2">
+                <Label htmlFor="heroImage">URL da Foto Principal (Hero)</Label>
+                <Tooltip>
+                  <TooltipTrigger>
+                    <Info className="w-4 h-4 text-muted-foreground" />
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-xs">
+                    <p className="font-medium mb-1">Dimensões recomendadas:</p>
+                    <p className="text-sm">1920 x 1080 pixels (16:9)</p>
+                    <p className="text-sm">ou 1920 x 1280 pixels (3:2)</p>
+                    <p className="text-sm text-muted-foreground mt-1">Formato: JPG ou PNG</p>
+                  </TooltipContent>
+                </Tooltip>
+              </div>
               <Input
                 id="heroImage"
                 value={config.heroImage}
@@ -246,10 +548,25 @@ const Dashboard = () => {
                 placeholder="https://..."
                 className="bg-background"
               />
-              <p className="text-xs text-muted-foreground">Deixe vazio para usar o design padrão</p>
+              <p className="text-xs text-muted-foreground">
+                📐 Recomendado: 1920x1080px (16:9) ou 1920x1280px (3:2)
+              </p>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="videoUrl">Link do Vídeo (YouTube/Vimeo)</Label>
+              <div className="flex items-center gap-2">
+                <Label htmlFor="videoUrl">Link do Vídeo (YouTube/Vimeo)</Label>
+                <Tooltip>
+                  <TooltipTrigger>
+                    <Info className="w-4 h-4 text-muted-foreground" />
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-xs">
+                    <p className="font-medium mb-1">Formatos aceitos:</p>
+                    <p className="text-sm">youtube.com/watch?v=...</p>
+                    <p className="text-sm">vimeo.com/...</p>
+                    <p className="text-sm text-muted-foreground mt-1">Proporção 16:9 recomendada</p>
+                  </TooltipContent>
+                </Tooltip>
+              </div>
               <Input
                 id="videoUrl"
                 value={config.videoUrl}
@@ -257,15 +574,96 @@ const Dashboard = () => {
                 placeholder="https://youtube.com/watch?v=..."
                 className="bg-background"
               />
+              <p className="text-xs text-muted-foreground">
+                🎬 Proporção recomendada: 16:9
+              </p>
+            </div>
+          </div>
+
+          {/* Gallery dimensions note */}
+          <div className="mt-6 p-4 bg-muted/50 rounded-lg border border-border">
+            <h4 className="font-medium text-foreground mb-2 flex items-center gap-2">
+              <Camera className="w-4 h-4 text-gold" />
+              Dimensões para Galeria de Fotos
+            </h4>
+            <div className="grid sm:grid-cols-3 gap-4 text-sm text-muted-foreground">
+              <div>
+                <p className="font-medium text-foreground">Fotos da História</p>
+                <p>800 x 600px (4:3)</p>
+              </div>
+              <div>
+                <p className="font-medium text-foreground">Galeria Geral</p>
+                <p>800 x 800px (1:1) ou 800 x 600px</p>
+              </div>
+              <div>
+                <p className="font-medium text-foreground">Imagem de Presente</p>
+                <p>400 x 400px (1:1)</p>
+              </div>
             </div>
           </div>
         </motion.section>
 
-        {/* Section 5: Wedding Info */}
+        {/* Section 5: Mercado Pago Integration */}
         <motion.section
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.35 }}
+          className="bg-card rounded-xl p-6 shadow-soft border border-border"
+        >
+          <div className="flex items-center gap-3 mb-6">
+            <CreditCard className="w-5 h-5 text-gold" />
+            <h2 className="font-serif text-xl text-foreground">Integração Mercado Pago</h2>
+          </div>
+          
+          <div className="bg-muted/50 rounded-lg p-4 mb-6 border border-border">
+            <p className="text-sm text-muted-foreground">
+              Configure sua conta do Mercado Pago para receber pagamentos diretamente na sua conta.
+              Os convidados poderão pagar via Pix, cartão ou boleto.
+            </p>
+            <a 
+              href="https://www.mercadopago.com.br/developers/panel/credentials" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="text-sm text-gold hover:underline inline-flex items-center gap-1 mt-2"
+            >
+              Obter credenciais no Mercado Pago
+              <ExternalLink className="w-3 h-3" />
+            </a>
+          </div>
+
+          <div className="grid sm:grid-cols-2 gap-6">
+            <div className="space-y-2">
+              <Label htmlFor="mpPublicKey">Public Key</Label>
+              <Input
+                id="mpPublicKey"
+                value={mercadoPagoPublicKey}
+                onChange={(e) => setMercadoPagoPublicKey(e.target.value)}
+                placeholder="APP_USR-..."
+                className="bg-background font-mono text-sm"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="mpAccessToken">Access Token</Label>
+              <Input
+                id="mpAccessToken"
+                type="password"
+                value={mercadoPagoAccessToken}
+                onChange={(e) => setMercadoPagoAccessToken(e.target.value)}
+                placeholder="APP_USR-..."
+                className="bg-background font-mono text-sm"
+              />
+              <p className="text-xs text-muted-foreground">
+                ⚠️ Mantenha seu Access Token em segredo
+              </p>
+            </div>
+          </div>
+        </motion.section>
+
+        {/* Section 6: Wedding Info */}
+        <motion.section
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.4 }}
           className="bg-card rounded-xl p-6 shadow-soft border border-border"
         >
           <div className="flex items-center gap-3 mb-6">
@@ -283,6 +681,7 @@ const Dashboard = () => {
                   <Input
                     value={config.ceremonyDate}
                     onChange={(e) => updateConfig({ ceremonyDate: e.target.value })}
+                    placeholder="15 de Agosto de 2025"
                     className="bg-background"
                   />
                 </div>
@@ -291,6 +690,7 @@ const Dashboard = () => {
                   <Input
                     value={config.ceremonyTime}
                     onChange={(e) => updateConfig({ ceremonyTime: e.target.value })}
+                    placeholder="16:00"
                     className="bg-background"
                   />
                 </div>
@@ -300,6 +700,7 @@ const Dashboard = () => {
                 <Input
                   value={config.ceremonyLocation}
                   onChange={(e) => updateConfig({ ceremonyLocation: e.target.value })}
+                  placeholder="Nome do local"
                   className="bg-background"
                 />
               </div>
@@ -308,6 +709,7 @@ const Dashboard = () => {
                 <Input
                   value={config.ceremonyAddress}
                   onChange={(e) => updateConfig({ ceremonyAddress: e.target.value })}
+                  placeholder="Endereço completo"
                   className="bg-background"
                 />
               </div>
@@ -316,21 +718,21 @@ const Dashboard = () => {
             {/* Reception */}
             <div className="space-y-4">
               <h3 className="font-medium text-foreground">Recepção</h3>
-              <div className="grid sm:grid-cols-2 gap-4">
-                <div className="space-y-2 sm:col-span-2">
-                  <Label>Horário</Label>
-                  <Input
-                    value={config.receptionTime}
-                    onChange={(e) => updateConfig({ receptionTime: e.target.value })}
-                    className="bg-background"
-                  />
-                </div>
+              <div className="space-y-2">
+                <Label>Horário</Label>
+                <Input
+                  value={config.receptionTime}
+                  onChange={(e) => updateConfig({ receptionTime: e.target.value })}
+                  placeholder="18:30"
+                  className="bg-background"
+                />
               </div>
               <div className="space-y-2">
                 <Label>Local</Label>
                 <Input
                   value={config.receptionLocation}
                   onChange={(e) => updateConfig({ receptionLocation: e.target.value })}
+                  placeholder="Nome do local"
                   className="bg-background"
                 />
               </div>
@@ -339,6 +741,7 @@ const Dashboard = () => {
                 <Input
                   value={config.receptionAddress}
                   onChange={(e) => updateConfig({ receptionAddress: e.target.value })}
+                  placeholder="Endereço completo"
                   className="bg-background"
                 />
               </div>
@@ -346,11 +749,11 @@ const Dashboard = () => {
           </div>
         </motion.section>
 
-        {/* Section 6: About */}
+        {/* Section 7: About */}
         <motion.section
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.4 }}
+          transition={{ delay: 0.45 }}
           className="bg-card rounded-xl p-6 shadow-soft border border-border"
         >
           <div className="flex items-center gap-3 mb-6">
@@ -369,11 +772,11 @@ const Dashboard = () => {
           </div>
         </motion.section>
 
-        {/* Section 7: Gift Registry */}
+        {/* Section 8: Gift Registry */}
         <motion.section
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.45 }}
+          transition={{ delay: 0.5 }}
           className="bg-card rounded-xl p-6 shadow-soft border border-border"
         >
           <div className="flex items-center justify-between mb-6">
@@ -431,7 +834,10 @@ const Dashboard = () => {
                     </div>
                   </div>
                   <div className="space-y-2">
-                    <Label>URL da Imagem</Label>
+                    <div className="flex items-center gap-2">
+                      <Label>URL da Imagem</Label>
+                      <span className="text-xs text-muted-foreground">(400x400px)</span>
+                    </div>
                     <Input
                       value={newGift.image}
                       onChange={(e) => setNewGift({ ...newGift, image: e.target.value })}
@@ -567,20 +973,33 @@ const Dashboard = () => {
           </Dialog>
         </motion.section>
 
-        {/* Preview Button */}
+        {/* Save Button */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.5 }}
-          className="flex justify-center pt-8"
+          transition={{ delay: 0.55 }}
+          className="flex justify-center pt-8 gap-4"
         >
           <Button 
+            variant="outline"
             size="lg"
             onClick={() => navigate("/preview")}
-            className="bg-gold hover:bg-gold-light text-background text-lg px-12 py-6"
           >
             <Eye className="w-5 h-5 mr-3" />
-            Visualizar Site como Convidado
+            Visualizar Preview
+          </Button>
+          <Button 
+            size="lg"
+            onClick={handleSave}
+            disabled={isSaving}
+            className="bg-gold hover:bg-gold-light text-background text-lg px-12 py-6"
+          >
+            {isSaving ? (
+              <Loader2 className="w-5 h-5 mr-3 animate-spin" />
+            ) : (
+              <Save className="w-5 h-5 mr-3" />
+            )}
+            Salvar e Publicar Site
             <ChevronRight className="w-5 h-5 ml-2" />
           </Button>
         </motion.div>

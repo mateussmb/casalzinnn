@@ -157,8 +157,13 @@ const defaultConfig: WeddingConfig = {
 
 const WeddingContext = createContext<WeddingContextType | undefined>(undefined);
 
-export const WeddingProvider = ({ children }: { children: ReactNode }) => {
-  const [config, setConfig] = useState<WeddingConfig>(defaultConfig);
+interface WeddingProviderProps {
+  children: ReactNode;
+  initialConfig?: WeddingConfig;
+}
+
+export const WeddingProvider = ({ children, initialConfig }: WeddingProviderProps) => {
+  const [config, setConfig] = useState<WeddingConfig>(initialConfig || defaultConfig);
 
   const updateConfig = (updates: Partial<WeddingConfig>) => {
     setConfig((prev) => ({ ...prev, ...updates }));
