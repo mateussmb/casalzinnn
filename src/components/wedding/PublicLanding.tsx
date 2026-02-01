@@ -1,4 +1,4 @@
-import { useWedding } from "@/contexts/WeddingContext";
+import { useWedding, WeddingConfig } from "@/contexts/WeddingContext";
 import PublicHero from "./PublicHero";
 import PublicAbout from "./PublicAbout";
 import PublicWeddingInfo from "./PublicWeddingInfo";
@@ -12,10 +12,19 @@ import PublicFooter from "./PublicFooter";
 
 interface PublicLandingProps {
   isPreview?: boolean;
+  config?: WeddingConfig;
+  weddingId?: string;
+  mercadoPagoPublicKey?: string | null;
 }
 
-const PublicLanding = ({ isPreview = false }: PublicLandingProps) => {
-  const { config } = useWedding();
+const PublicLanding = ({ 
+  isPreview = false, 
+  config: propConfig,
+  weddingId,
+  mercadoPagoPublicKey 
+}: PublicLandingProps) => {
+  const contextData = useWedding();
+  const config = propConfig || contextData.config;
 
   return (
     <main className="overflow-x-hidden">
