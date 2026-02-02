@@ -78,6 +78,11 @@ const CheckoutModal = ({
       return;
     }
 
+    if (!weddingId) {
+      toast.error("Configuração do casamento não encontrada. Contate os noivos.");
+      return;
+    }
+
     setLoading(true);
 
     try {
