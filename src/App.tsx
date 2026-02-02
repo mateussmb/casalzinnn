@@ -11,6 +11,9 @@ import Dashboard from "./pages/Dashboard";
 import Preview from "./pages/Preview";
 import Demo from "./pages/Demo";
 import WeddingPage from "./pages/WeddingPage";
+import PaymentSuccess from "./pages/PaymentSuccess";
+import PaymentFailure from "./pages/PaymentFailure";
+import PaymentPending from "./pages/PaymentPending";
 import NotFound from "./pages/NotFound";
 import ProtectedRoute from "./components/ProtectedRoute";
 
@@ -28,6 +31,9 @@ const App = () => (
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
             <Route path="/demo" element={<Demo />} />
+            <Route path="/payment-success" element={<PaymentSuccess />} />
+            <Route path="/payment-failure" element={<PaymentFailure />} />
+            <Route path="/payment-pending" element={<PaymentPending />} />
             <Route 
               path="/dashboard" 
               element={
