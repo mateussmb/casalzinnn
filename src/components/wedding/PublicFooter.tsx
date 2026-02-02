@@ -5,11 +5,18 @@ import { useWedding } from "@/contexts/WeddingContext";
 const PublicFooter = () => {
   const { config } = useWedding();
 
-  const formattedDate = new Date(config.weddingDate).toLocaleDateString("pt-BR", {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  });
+  // Fix timezone issue by parsing the date correctly
+  const formattedDate = config.weddingDate 
+    ? (() => {
+        const [year, month, day] = config.weddingDate.split('-').map(Number);
+        const date = new Date(year, month - 1, day);
+        return date.toLocaleDateString("pt-BR", {
+          day: "numeric",
+          month: "long",
+          year: "numeric",
+        });
+      })()
+    : "";
 
   return (
     <footer className="py-16 bg-foreground text-background">

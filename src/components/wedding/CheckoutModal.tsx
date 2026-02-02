@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   X,
@@ -13,7 +13,11 @@ import {
   FileText,
   ShoppingBag,
   Check,
+  Copy,
+  ExternalLink,
+  AlertCircle,
 } from "lucide-react";
+import { initMercadoPago, Payment } from "@mercadopago/sdk-react";
 import { useCart } from "@/contexts/CartContext";
 import { useWedding } from "@/contexts/WeddingContext";
 import { Button } from "@/components/ui/button";
@@ -30,7 +34,18 @@ interface CheckoutModalProps {
   mercadoPagoPublicKey?: string | null;
 }
 
-type CheckoutStep = "cart" | "info" | "payment";
+type CheckoutStep = "cart" | "info" | "payment" | "success" | "pix" | "boleto";
+
+interface PixData {
+  qr_code: string;
+  qr_code_base64: string;
+  ticket_url?: string;
+}
+
+interface BoletoData {
+  ticket_url: string;
+  barcode?: string;
+}
 
 const CheckoutModal = ({
   isOpen,
@@ -54,13 +69,33 @@ const CheckoutModal = ({
   const [guestName, setGuestName] = useState("");
   const [guestEmail, setGuestEmail] = useState("");
   const [loading, setLoading] = useState(false);
-  const [paymentUrl, setPaymentUrl] = useState<string | null>(null);
+  const [orderId, setOrderId] = useState<string | null>(null);
+  const [mpInitialized, setMpInitialized] = useState(false);
+  const [pixData, setPixData] = useState<PixData | null>(null);
+  const [boletoData, setBoletoData] = useState<BoletoData | null>(null);
+  const [pixCopied, setPixCopied] = useState(false);
+
+  // Initialize Mercado Pago SDK
+  useEffect(() => {
+    if (mercadoPagoPublicKey && !mpInitialized) {
+      try {
+        initMercadoPago(mercadoPagoPublicKey, { locale: "pt-BR" });
+        setMpInitialized(true);
+      } catch (error) {
+        console.error("Error initializing Mercado Pago:", error);
+      }
+    }
+  }, [mercadoPagoPublicKey, mpInitialized]);
 
   const handleClose = () => {
-    setStep("cart");
-    setGuestName("");
-    setGuestEmail("");
-    setPaymentUrl(null);
+    if (step !== "pix" && step !== "boleto") {
+      setStep("cart");
+      setGuestName("");
+      setGuestEmail("");
+      setOrderId(null);
+      setPixData(null);
+      setBoletoData(null);
+    }
     onClose();
   };
 
@@ -83,10 +118,15 @@ const CheckoutModal = ({
       return;
     }
 
+    if (!mercadoPagoPublicKey) {
+      toast.error("Pagamento não configurado. Contate os noivos.");
+      return;
+    }
+
     setLoading(true);
 
     try {
-      // Build items array for the payment
+      // Create order in database first
       const paymentItems = items.map((item) => ({
         id: item.gift.id,
         name: item.gift.name,
@@ -94,7 +134,6 @@ const CheckoutModal = ({
         unit_price: item.gift.price,
       }));
 
-      // Add envelope if selected
       if (includeEnvelope) {
         paymentItems.push({
           id: "envelope-personalizado",
@@ -104,7 +143,7 @@ const CheckoutModal = ({
         });
       }
 
-      // Get access token from weddings table (via edge function)
+      // Create order via edge function
       const { data, error } = await supabase.functions.invoke("create-payment", {
         body: {
           weddingId,
@@ -114,15 +153,78 @@ const CheckoutModal = ({
         },
       });
 
-      if (error) {
-        throw new Error(error.message || "Erro ao criar pagamento");
+      if (error || !data?.orderId) {
+        throw new Error(error?.message || "Erro ao criar pedido");
       }
 
-      if (data?.initPoint) {
-        setPaymentUrl(data.initPoint);
-        setStep("payment");
-      } else {
-        throw new Error("URL de pagamento não recebida");
+      setOrderId(data.orderId);
+      setStep("payment");
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Erro ao processar";
+      toast.error(message);
+      console.error("Order creation error:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const handlePaymentSubmit = async (formData: any) => {
+    if (!orderId || !weddingId) {
+      toast.error("Erro no pedido. Tente novamente.");
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const paymentMethod = formData.selectedPaymentMethod || formData.payment_method_id;
+      const paymentFormData = formData.formData || formData;
+
+      // Extract payer identification safely
+      const payer = paymentFormData?.payer || {};
+      const identification = payer?.identification || {};
+
+      // Process payment via edge function
+      const { data, error } = await supabase.functions.invoke("process-payment", {
+        body: {
+          weddingId,
+          orderId,
+          paymentMethodId: paymentMethod,
+          token: paymentFormData?.token,
+          issuerId: paymentFormData?.issuer_id,
+          installments: paymentFormData?.installments,
+          payerEmail: guestEmail.trim() || `guest-${Date.now()}@wedding.local`,
+          payerName: guestName.trim(),
+          identificationType: identification?.type,
+          identificationNumber: identification?.number,
+          transactionAmount: getTotalPrice(),
+        },
+      });
+
+      if (error) {
+        throw new Error(error.message || "Erro ao processar pagamento");
+      }
+
+      // Handle response based on payment type
+      if (data.status === "approved") {
+        clearCart();
+        setStep("success");
+        toast.success("Pagamento aprovado!");
+      } else if (data.pix) {
+        setPixData(data.pix);
+        setStep("pix");
+        toast.info("Escaneie o QR Code para pagar");
+      } else if (data.boleto) {
+        setBoletoData(data.boleto);
+        setStep("boleto");
+        toast.info("Boleto gerado! Clique para visualizar");
+      } else if (data.status === "in_process" || data.status === "pending") {
+        toast.info("Pagamento em processamento");
+        clearCart();
+        setStep("success");
+      } else if (data.status === "rejected") {
+        toast.error(`Pagamento recusado: ${data.status_detail || "Tente outro método"}`);
       }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Erro ao processar pagamento";
@@ -133,13 +235,29 @@ const CheckoutModal = ({
     }
   };
 
-  const handleOpenPayment = () => {
-    if (paymentUrl) {
-      window.open(paymentUrl, "_blank");
-      clearCart();
-      handleClose();
-      toast.success("Você será redirecionado para o pagamento!");
+  const handlePaymentError = (error: unknown) => {
+    console.error("Payment form error:", error);
+    toast.error("Erro no formulário de pagamento");
+  };
+
+  const copyPixCode = () => {
+    if (pixData?.qr_code) {
+      navigator.clipboard.writeText(pixData.qr_code);
+      setPixCopied(true);
+      toast.success("Código Pix copiado!");
+      setTimeout(() => setPixCopied(false), 2000);
     }
+  };
+
+  const handleFinishPix = () => {
+    clearCart();
+    setStep("cart");
+    setGuestName("");
+    setGuestEmail("");
+    setOrderId(null);
+    setPixData(null);
+    onClose();
+    toast.success("Obrigado! Após o pagamento, os noivos serão notificados.");
   };
 
   if (!isOpen) return null;
@@ -156,7 +274,7 @@ const CheckoutModal = ({
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         className="fixed inset-0 bg-foreground/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-        onClick={handleClose}
+        onClick={step !== "payment" ? handleClose : undefined}
       >
         <motion.div
           initial={{ opacity: 0, scale: 0.95, y: 20 }}
@@ -176,6 +294,9 @@ const CheckoutModal = ({
                   {step === "cart" && "Carrinho de Presentes"}
                   {step === "info" && "Suas Informações"}
                   {step === "payment" && "Pagamento"}
+                  {step === "success" && "Pagamento Confirmado"}
+                  {step === "pix" && "Pague com Pix"}
+                  {step === "boleto" && "Boleto Gerado"}
                 </h2>
                 <p className="text-sm text-muted-foreground">
                   Presente para {config.coupleName}
@@ -191,36 +312,38 @@ const CheckoutModal = ({
           </div>
 
           {/* Steps indicator */}
-          <div className="flex items-center justify-center gap-2 py-4 border-b border-border">
-            {["cart", "info", "payment"].map((s, i) => (
-              <div key={s} className="flex items-center">
-                <div
-                  className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-colors ${
-                    step === s
-                      ? "bg-gold text-white"
-                      : i < ["cart", "info", "payment"].indexOf(step)
-                      ? "bg-green-500 text-white"
-                      : "bg-secondary text-muted-foreground"
-                  }`}
-                >
-                  {i < ["cart", "info", "payment"].indexOf(step) ? (
-                    <Check className="w-4 h-4" />
-                  ) : (
-                    i + 1
+          {!["success", "pix", "boleto"].includes(step) && (
+            <div className="flex items-center justify-center gap-2 py-4 border-b border-border">
+              {["cart", "info", "payment"].map((s, i) => (
+                <div key={s} className="flex items-center">
+                  <div
+                    className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-colors ${
+                      step === s
+                        ? "bg-gold text-white"
+                        : i < ["cart", "info", "payment"].indexOf(step)
+                        ? "bg-green-500 text-white"
+                        : "bg-secondary text-muted-foreground"
+                    }`}
+                  >
+                    {i < ["cart", "info", "payment"].indexOf(step) ? (
+                      <Check className="w-4 h-4" />
+                    ) : (
+                      i + 1
+                    )}
+                  </div>
+                  {i < 2 && (
+                    <div
+                      className={`w-12 h-0.5 mx-1 ${
+                        i < ["cart", "info", "payment"].indexOf(step)
+                          ? "bg-green-500"
+                          : "bg-secondary"
+                      }`}
+                    />
                   )}
                 </div>
-                {i < 2 && (
-                  <div
-                    className={`w-12 h-0.5 mx-1 ${
-                      i < ["cart", "info", "payment"].indexOf(step)
-                        ? "bg-green-500"
-                        : "bg-secondary"
-                    }`}
-                  />
-                )}
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
 
           {/* Content */}
           <div className="p-6 overflow-y-auto max-h-[50vh]">
@@ -341,7 +464,7 @@ const CheckoutModal = ({
                   />
                 </div>
                 <div>
-                  <Label htmlFor="guestEmail">Seu E-mail (opcional)</Label>
+                  <Label htmlFor="guestEmail">Seu E-mail (recomendado)</Label>
                   <Input
                     id="guestEmail"
                     type="email"
@@ -357,32 +480,140 @@ const CheckoutModal = ({
               </div>
             )}
 
-            {step === "payment" && (
+            {step === "payment" && mpInitialized && (
+              <div className="space-y-4">
+                {!mercadoPagoPublicKey ? (
+                  <div className="text-center py-8">
+                    <AlertCircle className="w-12 h-12 text-destructive mx-auto mb-3" />
+                    <p className="text-muted-foreground">
+                      Pagamento não configurado pelos noivos
+                    </p>
+                  </div>
+                ) : (
+                  <div className="mercadopago-container">
+                    <Payment
+                      initialization={{
+                        amount: getTotalPrice(),
+                        payer: {
+                          email: guestEmail || undefined,
+                        },
+                      }}
+                      customization={{
+                        paymentMethods: {
+                          creditCard: "all",
+                          debitCard: "all",
+                          ticket: "all",
+                          bankTransfer: "all",
+                          atm: "all",
+                          mercadoPago: "all",
+                        },
+                        visual: {
+                          style: {
+                            theme: "default",
+                          },
+                        },
+                      }}
+                      onSubmit={handlePaymentSubmit}
+                      onError={handlePaymentError}
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+
+            {step === "success" && (
+              <div className="space-y-4 text-center py-8">
+                <div className="w-16 h-16 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mx-auto">
+                  <Check className="w-8 h-8 text-green-600" />
+                </div>
+                <h3 className="font-serif text-2xl text-foreground">
+                  Obrigado pelo presente!
+                </h3>
+                <p className="text-muted-foreground">
+                  Seu presente para {config.coupleName} foi registrado com sucesso.
+                </p>
+              </div>
+            )}
+
+            {step === "pix" && pixData && (
               <div className="space-y-4 text-center">
-                <div className="p-4 bg-green-50 dark:bg-green-950/30 rounded-lg">
-                  <Check className="w-12 h-12 text-green-500 mx-auto mb-3" />
-                  <h3 className="font-medium text-foreground mb-2">
-                    Tudo pronto!
-                  </h3>
-                  <p className="text-sm text-muted-foreground">
-                    Clique no botão abaixo para ser redirecionado ao Mercado
-                    Pago e finalizar seu pagamento.
+                <div className="p-4 bg-secondary/50 rounded-lg">
+                  <QrCode className="w-8 h-8 text-gold mx-auto mb-2" />
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Escaneie o QR Code ou copie o código Pix
                   </p>
+                  
+                  {pixData.qr_code_base64 && (
+                    <img
+                      src={`data:image/png;base64,${pixData.qr_code_base64}`}
+                      alt="QR Code Pix"
+                      className="w-48 h-48 mx-auto mb-4 rounded-lg"
+                    />
+                  )}
+
+                  <div className="flex flex-col gap-2">
+                    <Button
+                      onClick={copyPixCode}
+                      variant="outline"
+                      className="w-full"
+                    >
+                      {pixCopied ? (
+                        <Check className="w-4 h-4 mr-2" />
+                      ) : (
+                        <Copy className="w-4 h-4 mr-2" />
+                      )}
+                      {pixCopied ? "Copiado!" : "Copiar código Pix"}
+                    </Button>
+                    
+                    {pixData.ticket_url && (
+                      <Button
+                        onClick={() => window.open(pixData.ticket_url, "_blank")}
+                        variant="outline"
+                        className="w-full"
+                      >
+                        <ExternalLink className="w-4 h-4 mr-2" />
+                        Ver no Mercado Pago
+                      </Button>
+                    )}
+                  </div>
                 </div>
 
-                <div className="flex items-center justify-center gap-4 py-4">
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <QrCode className="w-5 h-5" />
-                    <span>Pix</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <CreditCard className="w-5 h-5" />
-                    <span>Cartão</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <FileText className="w-5 h-5" />
-                    <span>Boleto</span>
-                  </div>
+                <div className="text-sm text-muted-foreground">
+                  <p>Valor: <span className="font-medium text-foreground">R$ {getTotalPrice().toFixed(2).replace(".", ",")}</span></p>
+                  <p className="mt-2">Após o pagamento, os noivos serão notificados automaticamente.</p>
+                </div>
+              </div>
+            )}
+
+            {step === "boleto" && boletoData && (
+              <div className="space-y-4 text-center">
+                <div className="p-4 bg-secondary/50 rounded-lg">
+                  <FileText className="w-8 h-8 text-gold mx-auto mb-2" />
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Seu boleto foi gerado com sucesso!
+                  </p>
+                  
+                  <Button
+                    onClick={() => window.open(boletoData.ticket_url, "_blank")}
+                    className="w-full bg-gold hover:bg-gold-dark text-white"
+                  >
+                    <ExternalLink className="w-4 h-4 mr-2" />
+                    Visualizar Boleto
+                  </Button>
+
+                  {boletoData.barcode && (
+                    <div className="mt-4">
+                      <p className="text-xs text-muted-foreground mb-2">Código de barras:</p>
+                      <p className="font-mono text-xs bg-background p-2 rounded break-all">
+                        {boletoData.barcode}
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                <div className="text-sm text-muted-foreground">
+                  <p>Valor: <span className="font-medium text-foreground">R$ {getTotalPrice().toFixed(2).replace(".", ",")}</span></p>
+                  <p className="mt-2">O boleto vence em 3 dias úteis.</p>
                 </div>
               </div>
             )}
@@ -414,18 +645,6 @@ const CheckoutModal = ({
             )}
 
             <div className="flex gap-3">
-              {step !== "cart" && (
-                <Button
-                  variant="outline"
-                  onClick={() =>
-                    setStep(step === "payment" ? "info" : "cart")
-                  }
-                  className="flex-1"
-                >
-                  Voltar
-                </Button>
-              )}
-
               {step === "cart" && (
                 <Button
                   onClick={handleProceedToInfo}
@@ -437,31 +656,80 @@ const CheckoutModal = ({
               )}
 
               {step === "info" && (
-                <Button
-                  onClick={handleProceedToPayment}
-                  disabled={loading || !guestName.trim()}
-                  className="flex-1 bg-gold hover:bg-gold-dark text-white"
-                >
-                  {loading ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                      Processando...
-                    </>
-                  ) : (
-                    "Ir para Pagamento"
-                  )}
-                </Button>
+                <>
+                  <Button
+                    variant="outline"
+                    onClick={() => setStep("cart")}
+                    className="flex-1"
+                  >
+                    Voltar
+                  </Button>
+                  <Button
+                    onClick={handleProceedToPayment}
+                    disabled={loading || !guestName.trim()}
+                    className="flex-1 bg-gold hover:bg-gold-dark text-white"
+                  >
+                    {loading ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                        Processando...
+                      </>
+                    ) : (
+                      "Ir para Pagamento"
+                    )}
+                  </Button>
+                </>
               )}
 
               {step === "payment" && (
                 <Button
-                  onClick={handleOpenPayment}
+                  variant="outline"
+                  onClick={() => setStep("info")}
+                  className="flex-1"
+                  disabled={loading}
+                >
+                  Voltar
+                </Button>
+              )}
+
+              {step === "success" && (
+                <Button
+                  onClick={() => {
+                    setStep("cart");
+                    onClose();
+                  }}
                   className="flex-1 bg-gold hover:bg-gold-dark text-white"
                 >
-                  Pagar com Mercado Pago
+                  Fechar
+                </Button>
+              )}
+
+              {(step === "pix" || step === "boleto") && (
+                <Button
+                  onClick={handleFinishPix}
+                  className="flex-1 bg-gold hover:bg-gold-dark text-white"
+                >
+                  Concluir
                 </Button>
               )}
             </div>
+
+            {step === "payment" && (
+              <div className="flex items-center justify-center gap-4 mt-4 pt-4 border-t border-border">
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <QrCode className="w-4 h-4" />
+                  <span>Pix</span>
+                </div>
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <CreditCard className="w-4 h-4" />
+                  <span>Cartão</span>
+                </div>
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <FileText className="w-4 h-4" />
+                  <span>Boleto</span>
+                </div>
+              </div>
+            )}
           </div>
         </motion.div>
       </motion.div>
