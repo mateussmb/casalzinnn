@@ -168,10 +168,12 @@ const Dashboard = () => {
     return coupleName
       .toLowerCase()
       .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .replace(/[^a-z0-9\s-]/g, "")
-      .replace(/\s+/g, "-")
-      .replace(/-+/g, "-")
+      .replace(/[\u0300-\u036f]/g, "") // remove accents
+      .replace(/\s*&\s*/g, "-") // replace & with hyphen
+      .replace(/[^a-z0-9\s-]/g, "") // remove special chars
+      .replace(/\s+/g, "-") // replace spaces with hyphens
+      .replace(/-+/g, "-") // collapse multiple hyphens
+      .replace(/^-|-$/g, "") // remove leading/trailing hyphens
       .trim();
   };
 

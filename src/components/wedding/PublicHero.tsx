@@ -45,11 +45,18 @@ const PublicHero = () => {
     document.getElementById("wedding-info")?.scrollIntoView({ behavior: "smooth" });
   };
 
-  const formattedDate = new Date(config.weddingDate).toLocaleDateString("pt-BR", {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  });
+  // Fix timezone issue by parsing the date correctly
+  const formattedDate = config.weddingDate 
+    ? (() => {
+        const [year, month, day] = config.weddingDate.split('-').map(Number);
+        const date = new Date(year, month - 1, day);
+        return date.toLocaleDateString("pt-BR", {
+          day: "numeric",
+          month: "long",
+          year: "numeric",
+        });
+      })()
+    : "";
 
   const hasHeroImage = config.heroImage || heroCoupleImage;
 
