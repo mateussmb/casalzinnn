@@ -43,6 +43,7 @@ export interface WeddingConfig {
   receptionLocation: string;
   receptionAddress: string;
   receptionTime: string;
+  sameLocation: boolean; // New: ceremony and reception at same venue
   
   // Gift Registry
   gifts: Gift[];
@@ -95,6 +96,7 @@ const defaultConfig: WeddingConfig = {
   receptionLocation: "Villa Garden Eventos",
   receptionAddress: "Av. das Palmeiras, 456 - Alto de Pinheiros, São Paulo - SP",
   receptionTime: "18:30",
+  sameLocation: false,
   
   gifts: [
     {
