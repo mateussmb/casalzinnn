@@ -307,6 +307,7 @@ export type Database = {
           reception_address: string | null
           reception_location: string | null
           reception_time: string | null
+          same_location: boolean
           section_about: boolean
           section_dress_code: boolean
           section_gallery: boolean
@@ -316,6 +317,9 @@ export type Database = {
           section_video: boolean
           section_wedding_info: boolean
           slug: string | null
+          story_photo_1: string | null
+          story_photo_2: string | null
+          story_photo_3: string | null
           tagline: string | null
           updated_at: string
           user_id: string
@@ -343,6 +347,7 @@ export type Database = {
           reception_address?: string | null
           reception_location?: string | null
           reception_time?: string | null
+          same_location?: boolean
           section_about?: boolean
           section_dress_code?: boolean
           section_gallery?: boolean
@@ -352,6 +357,9 @@ export type Database = {
           section_video?: boolean
           section_wedding_info?: boolean
           slug?: string | null
+          story_photo_1?: string | null
+          story_photo_2?: string | null
+          story_photo_3?: string | null
           tagline?: string | null
           updated_at?: string
           user_id: string
@@ -379,6 +387,7 @@ export type Database = {
           reception_address?: string | null
           reception_location?: string | null
           reception_time?: string | null
+          same_location?: boolean
           section_about?: boolean
           section_dress_code?: boolean
           section_gallery?: boolean
@@ -388,6 +397,9 @@ export type Database = {
           section_video?: boolean
           section_wedding_info?: boolean
           slug?: string | null
+          story_photo_1?: string | null
+          story_photo_2?: string | null
+          story_photo_3?: string | null
           tagline?: string | null
           updated_at?: string
           user_id?: string

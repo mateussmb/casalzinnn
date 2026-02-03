@@ -82,6 +82,8 @@ const WeddingContent = ({
     receptionLocation: weddingData.reception_location || "",
     receptionAddress: weddingData.reception_address || "",
     receptionTime: weddingData.reception_time || "",
+    sameLocation: weddingData.ceremony_location === weddingData.reception_location && 
+                  weddingData.ceremony_address === weddingData.reception_address,
     aboutText: weddingData.about_text || "",
     dressCodeText: weddingData.dress_code_text || "",
     colorsToAvoid: weddingData.colors_to_avoid || "",
