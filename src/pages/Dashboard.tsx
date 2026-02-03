@@ -6,7 +6,7 @@ import {
   MessageSquare, Users, Camera, Video, Shirt, 
   Plus, Trash2, Edit2, Save, ChevronRight, LogOut,
   CreditCard, Link2, Copy, Check, ExternalLink, Info,
-  Loader2
+  Loader2, CheckCircle2, XCircle, AlertCircle, MapPin
 } from "lucide-react";
 import { useWedding, Gift as GiftType } from "@/contexts/WeddingContext";
 import { useAuth } from "@/hooks/useAuth";
@@ -17,6 +17,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -36,6 +37,10 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+  Alert,
+  AlertDescription,
+} from "@/components/ui/alert";
 
 const layoutOptions = [
   {
@@ -93,6 +98,18 @@ const Dashboard = () => {
   // Mercado Pago credentials
   const [mercadoPagoPublicKey, setMercadoPagoPublicKey] = useState("");
   const [mercadoPagoAccessToken, setMercadoPagoAccessToken] = useState("");
+  const [mpValidating, setMpValidating] = useState(false);
+  const [mpValidation, setMpValidation] = useState<{
+    valid: boolean;
+    message?: string;
+    error?: string;
+    isTestMode?: boolean;
+  } | null>(null);
+
+  // Story photos
+  const [storyPhoto1, setStoryPhoto1] = useState("");
+  const [storyPhoto2, setStoryPhoto2] = useState("");
+  const [storyPhoto3, setStoryPhoto3] = useState("");
 
   // Load existing wedding data
   useEffect(() => {
@@ -109,6 +126,9 @@ const Dashboard = () => {
         setWeddingSlug(wedding.slug);
         setMercadoPagoPublicKey(wedding.mercado_pago_public_key || "");
         setMercadoPagoAccessToken(wedding.mercado_pago_access_token || "");
+        setStoryPhoto1((wedding as Record<string, unknown>).story_photo_1 as string || "");
+        setStoryPhoto2((wedding as Record<string, unknown>).story_photo_2 as string || "");
+        setStoryPhoto3((wedding as Record<string, unknown>).story_photo_3 as string || "");
         
         // Update context with saved data
         updateConfig({
@@ -135,10 +155,16 @@ const Dashboard = () => {
           receptionLocation: wedding.reception_location || "",
           receptionAddress: wedding.reception_address || "",
           receptionTime: wedding.reception_time || "",
+          sameLocation: (wedding as Record<string, unknown>).same_location as boolean || false,
           aboutText: wedding.about_text || "",
           dressCodeText: wedding.dress_code_text || "",
           colorsToAvoid: wedding.colors_to_avoid || "",
           additionalInfo: wedding.additional_info || "",
+          storyPhotos: [
+            (wedding as Record<string, unknown>).story_photo_1 as string,
+            (wedding as Record<string, unknown>).story_photo_2 as string,
+            (wedding as Record<string, unknown>).story_photo_3 as string,
+          ].filter(Boolean) as string[],
         });
 
         // Load gifts
@@ -169,7 +195,7 @@ const Dashboard = () => {
       .toLowerCase()
       .normalize("NFD")
       .replace(/[\u0300-\u036f]/g, "") // remove accents
-      .replace(/\s*&\s*/g, "-") // replace & with hyphen
+      .replace(/\s*&\s*/g, "-e-") // replace & with -e-
       .replace(/[^a-z0-9\s-]/g, "") // remove special chars
       .replace(/\s+/g, "-") // replace spaces with hyphens
       .replace(/-+/g, "-") // collapse multiple hyphens
@@ -177,8 +203,72 @@ const Dashboard = () => {
       .trim();
   };
 
+  const validateMercadoPago = async () => {
+    if (!mercadoPagoPublicKey || !mercadoPagoAccessToken) {
+      toast({
+        title: "Campos obrigatórios",
+        description: "Preencha a Public Key e o Access Token para validar",
+        variant: "destructive",
+      });
+      return false;
+    }
+
+    setMpValidating(true);
+    setMpValidation(null);
+
+    try {
+      const { data, error } = await supabase.functions.invoke("validate-mercadopago", {
+        body: {
+          accessToken: mercadoPagoAccessToken,
+          publicKey: mercadoPagoPublicKey,
+        },
+      });
+
+      if (error) {
+        setMpValidation({ valid: false, error: error.message });
+        return false;
+      }
+
+      setMpValidation(data);
+      
+      if (data.valid) {
+        toast({
+          title: "Credenciais válidas!",
+          description: data.message,
+        });
+        return true;
+      } else {
+        toast({
+          title: "Credenciais inválidas",
+          description: data.error,
+          variant: "destructive",
+        });
+        return false;
+      }
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Erro desconhecido";
+      setMpValidation({ valid: false, error: message });
+      return false;
+    } finally {
+      setMpValidating(false);
+    }
+  };
+
   const handleSave = async () => {
     if (!user) return;
+
+    // Validate Mercado Pago if credentials are provided
+    if (mercadoPagoPublicKey && mercadoPagoAccessToken) {
+      const isValid = await validateMercadoPago();
+      if (!isValid) {
+        toast({
+          title: "Credenciais do Mercado Pago inválidas",
+          description: "Corrija as credenciais antes de salvar",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
 
     setIsSaving(true);
 
@@ -190,23 +280,20 @@ const Dashboard = () => {
         .eq("user_id", user.id)
         .single();
 
-      let slug = existingWedding?.slug;
-      
-      // Generate slug if new wedding
-      if (!slug) {
-        const baseSlug = generateSlug(config.coupleName);
-        
-        // Check for uniqueness
+      // Always regenerate slug based on couple name
+      const newSlug = generateSlug(config.coupleName);
+      let slug = newSlug;
+
+      // Check for uniqueness only if it's different from current
+      if (!existingWedding?.slug || existingWedding.slug !== newSlug) {
         const { data: slugCheck } = await supabase
           .from("weddings")
-          .select("slug")
-          .eq("slug", baseSlug)
+          .select("slug, id")
+          .eq("slug", newSlug)
           .single();
 
-        if (slugCheck) {
-          slug = `${baseSlug}-${Date.now().toString(36)}`;
-        } else {
-          slug = baseSlug;
+        if (slugCheck && slugCheck.id !== existingWedding?.id) {
+          slug = `${newSlug}-${Date.now().toString(36)}`;
         }
       }
 
@@ -231,15 +318,19 @@ const Dashboard = () => {
         ceremony_time: config.ceremonyTime || null,
         ceremony_location: config.ceremonyLocation || null,
         ceremony_address: config.ceremonyAddress || null,
-        reception_location: config.receptionLocation || null,
-        reception_address: config.receptionAddress || null,
+        reception_location: config.sameLocation ? config.ceremonyLocation : (config.receptionLocation || null),
+        reception_address: config.sameLocation ? config.ceremonyAddress : (config.receptionAddress || null),
         reception_time: config.receptionTime || null,
+        same_location: config.sameLocation,
         about_text: config.aboutText || null,
         dress_code_text: config.dressCodeText || null,
         colors_to_avoid: config.colorsToAvoid || null,
         additional_info: config.additionalInfo || null,
         mercado_pago_public_key: mercadoPagoPublicKey || null,
         mercado_pago_access_token: mercadoPagoAccessToken || null,
+        story_photo_1: storyPhoto1 || null,
+        story_photo_2: storyPhoto2 || null,
+        story_photo_3: storyPhoto3 || null,
       };
 
       let weddingId: string;
@@ -285,14 +376,20 @@ const Dashboard = () => {
 
       setWeddingSlug(slug);
       
+      // Update story photos in context
+      updateConfig({
+        storyPhotos: [storyPhoto1, storyPhoto2, storyPhoto3].filter(Boolean),
+      });
+      
       toast({
         title: "Salvo com sucesso!",
         description: `Seu site está disponível em: ${window.location.origin}/${slug}`,
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Erro desconhecido";
       toast({
         title: "Erro ao salvar",
-        description: error.message,
+        description: message,
         variant: "destructive",
       });
     } finally {
@@ -326,6 +423,16 @@ const Dashboard = () => {
   const handleLogout = async () => {
     await signOut();
     navigate("/");
+  };
+
+  const handleSameLocationChange = (checked: boolean) => {
+    updateConfig({ sameLocation: checked });
+    if (checked) {
+      updateConfig({
+        receptionLocation: config.ceremonyLocation,
+        receptionAddress: config.ceremonyAddress,
+      });
+    }
   };
 
   const publicUrl = weddingSlug ? `${window.location.origin}/${weddingSlug}` : null;
@@ -605,7 +712,72 @@ const Dashboard = () => {
           </div>
         </motion.section>
 
-        {/* Section 5: Mercado Pago Integration */}
+        {/* Section 5: Story Photos */}
+        <motion.section
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.32 }}
+          className="bg-card rounded-xl p-6 shadow-soft border border-border"
+        >
+          <div className="flex items-center gap-3 mb-6">
+            <Heart className="w-5 h-5 text-gold" />
+            <h2 className="font-serif text-xl text-foreground">Fotos da Nossa História</h2>
+          </div>
+          
+          <p className="text-sm text-muted-foreground mb-4">
+            Adicione até 3 fotos do casal para a seção "Nossa História". Essas fotos aparecerão na página pública do seu casamento.
+          </p>
+
+          <div className="grid sm:grid-cols-3 gap-4">
+            <div className="space-y-2">
+              <Label>Foto Principal (grande)</Label>
+              <Input
+                value={storyPhoto1}
+                onChange={(e) => setStoryPhoto1(e.target.value)}
+                placeholder="URL da foto 1"
+                className="bg-background"
+              />
+              {storyPhoto1 && (
+                <div className="aspect-video rounded-lg overflow-hidden bg-muted">
+                  <img src={storyPhoto1} alt="Preview 1" className="w-full h-full object-cover" />
+                </div>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label>Foto 2</Label>
+              <Input
+                value={storyPhoto2}
+                onChange={(e) => setStoryPhoto2(e.target.value)}
+                placeholder="URL da foto 2"
+                className="bg-background"
+              />
+              {storyPhoto2 && (
+                <div className="aspect-video rounded-lg overflow-hidden bg-muted">
+                  <img src={storyPhoto2} alt="Preview 2" className="w-full h-full object-cover" />
+                </div>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label>Foto 3</Label>
+              <Input
+                value={storyPhoto3}
+                onChange={(e) => setStoryPhoto3(e.target.value)}
+                placeholder="URL da foto 3"
+                className="bg-background"
+              />
+              {storyPhoto3 && (
+                <div className="aspect-video rounded-lg overflow-hidden bg-muted">
+                  <img src={storyPhoto3} alt="Preview 3" className="w-full h-full object-cover" />
+                </div>
+              )}
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground mt-4">
+            📐 Dimensão recomendada: 800x600px (4:3) para melhor visualização
+          </p>
+        </motion.section>
+
+        {/* Section 6: Mercado Pago Integration */}
         <motion.section
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -633,14 +805,38 @@ const Dashboard = () => {
             </a>
           </div>
 
+          {mpValidation && (
+            <Alert className={`mb-4 ${mpValidation.valid ? 'border-green-500 bg-green-500/10' : 'border-destructive bg-destructive/10'}`}>
+              <AlertDescription className="flex items-center gap-2">
+                {mpValidation.valid ? (
+                  <>
+                    <CheckCircle2 className="w-4 h-4 text-green-500" />
+                    <span className="text-green-700">{mpValidation.message}</span>
+                    {mpValidation.isTestMode && (
+                      <span className="text-xs bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded">Modo Teste</span>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <XCircle className="w-4 h-4 text-destructive" />
+                    <span className="text-destructive">{mpValidation.error}</span>
+                  </>
+                )}
+              </AlertDescription>
+            </Alert>
+          )}
+
           <div className="grid sm:grid-cols-2 gap-6">
             <div className="space-y-2">
               <Label htmlFor="mpPublicKey">Public Key</Label>
               <Input
                 id="mpPublicKey"
                 value={mercadoPagoPublicKey}
-                onChange={(e) => setMercadoPagoPublicKey(e.target.value)}
-                placeholder="APP_USR-..."
+                onChange={(e) => {
+                  setMercadoPagoPublicKey(e.target.value);
+                  setMpValidation(null);
+                }}
+                placeholder="APP_USR-... ou TEST-..."
                 className="bg-background font-mono text-sm"
               />
             </div>
@@ -650,18 +846,36 @@ const Dashboard = () => {
                 id="mpAccessToken"
                 type="password"
                 value={mercadoPagoAccessToken}
-                onChange={(e) => setMercadoPagoAccessToken(e.target.value)}
-                placeholder="APP_USR-..."
+                onChange={(e) => {
+                  setMercadoPagoAccessToken(e.target.value);
+                  setMpValidation(null);
+                }}
+                placeholder="APP_USR-... ou TEST-..."
                 className="bg-background font-mono text-sm"
               />
-              <p className="text-xs text-muted-foreground">
-                ⚠️ Mantenha seu Access Token em segredo
-              </p>
             </div>
+          </div>
+
+          <div className="mt-4 flex items-center gap-4">
+            <Button
+              variant="outline"
+              onClick={validateMercadoPago}
+              disabled={mpValidating || !mercadoPagoPublicKey || !mercadoPagoAccessToken}
+            >
+              {mpValidating ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <CheckCircle2 className="w-4 h-4 mr-2" />
+              )}
+              Testar Conexão
+            </Button>
+            <p className="text-xs text-muted-foreground">
+              ⚠️ As credenciais serão validadas antes de salvar
+            </p>
           </div>
         </motion.section>
 
-        {/* Section 6: Wedding Info */}
+        {/* Section 7: Wedding Info */}
         <motion.section
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -676,7 +890,10 @@ const Dashboard = () => {
           <div className="grid lg:grid-cols-2 gap-8">
             {/* Ceremony */}
             <div className="space-y-4">
-              <h3 className="font-medium text-foreground">Cerimônia</h3>
+              <h3 className="font-medium text-foreground flex items-center gap-2">
+                <MapPin className="w-4 h-4 text-gold" />
+                Cerimônia
+              </h3>
               <div className="grid sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Data</Label>
@@ -719,39 +936,76 @@ const Dashboard = () => {
 
             {/* Reception */}
             <div className="space-y-4">
-              <h3 className="font-medium text-foreground">Recepção</h3>
-              <div className="space-y-2">
-                <Label>Horário</Label>
-                <Input
-                  value={config.receptionTime}
-                  onChange={(e) => updateConfig({ receptionTime: e.target.value })}
-                  placeholder="18:30"
-                  className="bg-background"
-                />
+              <div className="flex items-center justify-between">
+                <h3 className="font-medium text-foreground flex items-center gap-2">
+                  <MapPin className="w-4 h-4 text-gold" />
+                  Recepção
+                </h3>
               </div>
-              <div className="space-y-2">
-                <Label>Local</Label>
-                <Input
-                  value={config.receptionLocation}
-                  onChange={(e) => updateConfig({ receptionLocation: e.target.value })}
-                  placeholder="Nome do local"
-                  className="bg-background"
+
+              {/* Same location toggle */}
+              <div className="flex items-center gap-3 p-3 rounded-lg bg-gold/5 border border-gold/20">
+                <Checkbox
+                  id="sameLocation"
+                  checked={config.sameLocation}
+                  onCheckedChange={(checked) => handleSameLocationChange(checked === true)}
                 />
+                <label htmlFor="sameLocation" className="text-sm cursor-pointer">
+                  Cerimônia e recepção no mesmo local
+                </label>
               </div>
-              <div className="space-y-2">
-                <Label>Endereço</Label>
-                <Input
-                  value={config.receptionAddress}
-                  onChange={(e) => updateConfig({ receptionAddress: e.target.value })}
-                  placeholder="Endereço completo"
-                  className="bg-background"
-                />
-              </div>
+
+              {!config.sameLocation && (
+                <>
+                  <div className="space-y-2">
+                    <Label>Horário</Label>
+                    <Input
+                      value={config.receptionTime}
+                      onChange={(e) => updateConfig({ receptionTime: e.target.value })}
+                      placeholder="18:30"
+                      className="bg-background"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Local</Label>
+                    <Input
+                      value={config.receptionLocation}
+                      onChange={(e) => updateConfig({ receptionLocation: e.target.value })}
+                      placeholder="Nome do local"
+                      className="bg-background"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Endereço</Label>
+                    <Input
+                      value={config.receptionAddress}
+                      onChange={(e) => updateConfig({ receptionAddress: e.target.value })}
+                      placeholder="Endereço completo"
+                      className="bg-background"
+                    />
+                  </div>
+                </>
+              )}
+
+              {config.sameLocation && (
+                <div className="space-y-2">
+                  <Label>Horário da Recepção</Label>
+                  <Input
+                    value={config.receptionTime}
+                    onChange={(e) => updateConfig({ receptionTime: e.target.value })}
+                    placeholder="18:30"
+                    className="bg-background"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Local será o mesmo da cerimônia
+                  </p>
+                </div>
+              )}
             </div>
           </div>
         </motion.section>
 
-        {/* Section 7: About */}
+        {/* Section 8: About */}
         <motion.section
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -774,7 +1028,50 @@ const Dashboard = () => {
           </div>
         </motion.section>
 
-        {/* Section 8: Gift Registry */}
+        {/* Section 9: Dress Code */}
+        <motion.section
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.47 }}
+          className="bg-card rounded-xl p-6 shadow-soft border border-border"
+        >
+          <div className="flex items-center gap-3 mb-6">
+            <Shirt className="w-5 h-5 text-gold" />
+            <h2 className="font-serif text-xl text-foreground">Dress Code</h2>
+          </div>
+          
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Descrição do Traje</Label>
+              <Textarea
+                value={config.dressCodeText}
+                onChange={(e) => updateConfig({ dressCodeText: e.target.value })}
+                placeholder="Esporte fino, traje social, etc."
+                className="bg-background"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Cores a Evitar</Label>
+              <Input
+                value={config.colorsToAvoid}
+                onChange={(e) => updateConfig({ colorsToAvoid: e.target.value })}
+                placeholder="Branco, off-white..."
+                className="bg-background"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Informações Adicionais</Label>
+              <Textarea
+                value={config.additionalInfo}
+                onChange={(e) => updateConfig({ additionalInfo: e.target.value })}
+                placeholder="Dicas extras, como calçados confortáveis..."
+                className="bg-background"
+              />
+            </div>
+          </div>
+        </motion.section>
+
+        {/* Section 10: Gift Registry */}
         <motion.section
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -844,15 +1141,6 @@ const Dashboard = () => {
                       value={newGift.image}
                       onChange={(e) => setNewGift({ ...newGift, image: e.target.value })}
                       placeholder="https://..."
-                      className="bg-background"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Link Externo (onde comprar)</Label>
-                    <Input
-                      value={newGift.externalLink}
-                      onChange={(e) => setNewGift({ ...newGift, externalLink: e.target.value })}
-                      placeholder="https://loja.com/produto"
                       className="bg-background"
                     />
                   </div>
@@ -954,14 +1242,6 @@ const Dashboard = () => {
                     <Input
                       value={editingGift.image}
                       onChange={(e) => setEditingGift({ ...editingGift, image: e.target.value })}
-                      className="bg-background"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Link Externo</Label>
-                    <Input
-                      value={editingGift.externalLink}
-                      onChange={(e) => setEditingGift({ ...editingGift, externalLink: e.target.value })}
                       className="bg-background"
                     />
                   </div>
