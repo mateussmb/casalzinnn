@@ -48,11 +48,11 @@ const PublicLandingContent = ({
         
         {config.sections.gifts && <GiftRegistrySection />}
         
-        {config.sections.rsvp && <PublicRSVP />}
+        {config.sections.rsvp && <PublicRSVP weddingId={weddingId} />}
         
         {config.sections.gallery && <PhotoGallery />}
         
-        {config.sections.messageWall && <PublicMessageWall />}
+        {config.sections.messageWall && <PublicMessageWall weddingId={weddingId} />}
         
         <PublicFooter />
       </main>

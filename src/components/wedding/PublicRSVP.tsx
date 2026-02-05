@@ -1,8 +1,10 @@
 import { motion } from "framer-motion";
 import { useInView } from "framer-motion";
 import { useRef, useState } from "react";
-import { Send, CheckCircle, Users } from "lucide-react";
+import { Send, CheckCircle, Users, Loader2 } from "lucide-react";
 import { useWedding } from "@/contexts/WeddingContext";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 interface RSVPFormData {
   name: string;
@@ -10,21 +12,58 @@ interface RSVPFormData {
   attending: "yes" | "no" | "";
 }
 
-const PublicRSVP = () => {
+interface PublicRSVPProps {
+  weddingId?: string;
+}
+
+const PublicRSVP = ({ weddingId }: PublicRSVPProps) => {
   const ref = useRef(null);
   const isInView = useInView(ref, { once: true, margin: "-100px" });
   const { config } = useWedding();
   const [submitted, setSubmitted] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState<RSVPFormData>({
     name: "",
     guests: 1,
     attending: "",
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log("RSVP enviado:", formData);
-    setSubmitted(true);
+    
+    if (!weddingId) {
+      toast.error("Erro ao enviar confirmação. Por favor, recarregue a página.");
+      return;
+    }
+
+    if (!formData.name.trim() || !formData.attending) {
+      toast.error("Por favor, preencha todos os campos.");
+      return;
+    }
+
+    setLoading(true);
+    
+    try {
+      const { error } = await supabase.from("rsvp_responses").insert({
+        wedding_id: weddingId,
+        guest_name: formData.name.trim().substring(0, 200),
+        guests_count: formData.guests,
+        attendance: formData.attending === "yes" ? "confirmed" : "declined",
+      });
+
+      if (error) {
+        console.error("RSVP error:", error);
+        throw error;
+      }
+
+      setSubmitted(true);
+      toast.success("Confirmação enviada com sucesso!");
+    } catch (err) {
+      console.error("Error submitting RSVP:", err);
+      toast.error("Erro ao enviar confirmação. Por favor, tente novamente.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleInputChange = (
@@ -104,10 +143,12 @@ const PublicRSVP = () => {
                 id="name"
                 name="name"
                 required
+                maxLength={200}
                 value={formData.name}
                 onChange={handleInputChange}
                 className="input-wedding"
                 placeholder="Digite seu nome"
+                disabled={loading}
               />
             </div>
 
@@ -126,6 +167,7 @@ const PublicRSVP = () => {
                 value={formData.guests}
                 onChange={handleInputChange}
                 className="input-wedding"
+                disabled={loading}
               >
                 {[1, 2, 3, 4, 5].map((num) => (
                   <option key={num} value={num}>
@@ -145,7 +187,7 @@ const PublicRSVP = () => {
                     formData.attending === "yes"
                       ? "border-gold bg-gold/10"
                       : "border-border hover:border-gold/50"
-                  }`}
+                  } ${loading ? "opacity-50 cursor-not-allowed" : ""}`}
                 >
                   <input
                     type="radio"
@@ -154,6 +196,7 @@ const PublicRSVP = () => {
                     checked={formData.attending === "yes"}
                     onChange={handleInputChange}
                     className="sr-only"
+                    disabled={loading}
                   />
                   <span className={formData.attending === "yes" ? "text-gold" : "text-foreground"}>
                     Sim, estarei presente
@@ -164,7 +207,7 @@ const PublicRSVP = () => {
                     formData.attending === "no"
                       ? "border-gold bg-gold/10"
                       : "border-border hover:border-gold/50"
-                  }`}
+                  } ${loading ? "opacity-50 cursor-not-allowed" : ""}`}
                 >
                   <input
                     type="radio"
@@ -173,6 +216,7 @@ const PublicRSVP = () => {
                     checked={formData.attending === "no"}
                     onChange={handleInputChange}
                     className="sr-only"
+                    disabled={loading}
                   />
                   <span className={formData.attending === "no" ? "text-gold" : "text-foreground"}>
                     Não poderei ir
@@ -183,11 +227,20 @@ const PublicRSVP = () => {
 
             <button
               type="submit"
-              disabled={!formData.name || !formData.attending}
+              disabled={!formData.name || !formData.attending || loading}
               className="btn-wedding w-full disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Enviar Confirmação
-              <Send className="ml-2 w-5 h-5" />
+              {loading ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin mr-2" />
+                  Enviando...
+                </>
+              ) : (
+                <>
+                  Enviar Confirmação
+                  <Send className="ml-2 w-5 h-5" />
+                </>
+              )}
             </button>
           </div>
         </motion.form>
