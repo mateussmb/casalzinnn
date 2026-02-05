@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Heart, Loader2, ArrowLeft } from "lucide-react";
-import { WeddingProvider, WeddingConfig, Gift } from "@/contexts/WeddingContext";
+import { WeddingProvider, WeddingConfig } from "@/contexts/WeddingContext";
 import PublicLanding from "@/components/wedding/PublicLanding";
 import { Button } from "@/components/ui/button";
 
@@ -29,11 +29,17 @@ interface WeddingData {
   reception_location: string | null;
   reception_address: string | null;
   reception_time: string | null;
+  same_location: boolean;
   about_text: string | null;
   dress_code_text: string | null;
   colors_to_avoid: string | null;
   additional_info: string | null;
   mercado_pago_public_key: string | null;
+  story_photo_1: string | null;
+  story_photo_2: string | null;
+  story_photo_3: string | null;
+  partner1_name: string;
+  partner2_name: string;
 }
 
 interface GiftData {
@@ -43,6 +49,13 @@ interface GiftData {
   price: number;
   image_url: string | null;
   external_link: string | null;
+}
+
+interface GalleryImageData {
+  id: string;
+  image_url: string;
+  caption: string | null;
+  display_order: number;
 }
 
 // Component that uses the wedding context with loaded data
@@ -82,12 +95,16 @@ const WeddingContent = ({
     receptionLocation: weddingData.reception_location || "",
     receptionAddress: weddingData.reception_address || "",
     receptionTime: weddingData.reception_time || "",
-    sameLocation: weddingData.ceremony_location === weddingData.reception_location && 
-                  weddingData.ceremony_address === weddingData.reception_address,
+    sameLocation: weddingData.same_location,
     aboutText: weddingData.about_text || "",
     dressCodeText: weddingData.dress_code_text || "",
     colorsToAvoid: weddingData.colors_to_avoid || "",
     additionalInfo: weddingData.additional_info || "",
+    storyPhotos: [
+      weddingData.story_photo_1 || "",
+      weddingData.story_photo_2 || "",
+      weddingData.story_photo_3 || "",
+    ].filter(Boolean),
     gifts: gifts.map(g => ({
       id: g.id,
       name: g.name,
@@ -97,7 +114,6 @@ const WeddingContent = ({
       externalLink: g.external_link || "",
     })),
     galleryImages: [],
-    storyPhotos: [],
   };
 
   return (
@@ -133,29 +149,119 @@ const WeddingPage = () => {
         return;
       }
 
-      try {
-        const { data: weddingData, error: weddingError } = await supabase
-          .from("weddings")
-          .select("*")
-          .eq("slug", slug)
-          .single();
+      // Validate slug format (only lowercase letters, numbers, and hyphens)
+      if (!/^[a-z0-9-]+$/.test(slug)) {
+        setError("URL inválida");
+        setLoading(false);
+        return;
+      }
 
-        if (weddingError || !weddingData) {
-          setError("Casamento não encontrado");
+      try {
+        // Use secure edge function to fetch public wedding data
+        // This prevents exposure of mercado_pago_access_token
+        const { data, error: fnError } = await supabase.functions.invoke(
+          'get-public-wedding',
+          {
+            body: null,
+            headers: {},
+          }
+        );
+
+        // If edge function is not deployed yet, fall back to direct query with explicit columns
+        if (fnError) {
+          console.log('Falling back to direct query');
+          const { data: weddingData, error: weddingError } = await supabase
+            .from("weddings")
+            .select(`
+              id,
+              couple_name,
+              wedding_date,
+              tagline,
+              slug,
+              layout,
+              section_about,
+              section_wedding_info,
+              section_gifts,
+              section_rsvp,
+              section_message_wall,
+              section_gallery,
+              section_video,
+              section_dress_code,
+              hero_image_url,
+              video_url,
+              ceremony_date,
+              ceremony_time,
+              ceremony_location,
+              ceremony_address,
+              reception_location,
+              reception_address,
+              reception_time,
+              same_location,
+              about_text,
+              dress_code_text,
+              colors_to_avoid,
+              additional_info,
+              story_photo_1,
+              story_photo_2,
+              story_photo_3,
+              partner1_name,
+              partner2_name,
+              mercado_pago_public_key
+            `)
+            .eq("slug", slug)
+            .single();
+
+          if (weddingError || !weddingData) {
+            setError("Casamento não encontrado");
+            setLoading(false);
+            return;
+          }
+
+          setWedding(weddingData as WeddingData);
+
+          // Fetch gifts
+          const { data: giftsData } = await supabase
+            .from("gifts")
+            .select("id, name, category, price, image_url, external_link")
+            .eq("wedding_id", weddingData.id);
+
+          setGifts(giftsData || []);
           setLoading(false);
           return;
         }
 
-        setWedding(weddingData);
+        // Use edge function response
+        const response = await supabase.functions.invoke('get-public-wedding', {
+          headers: {},
+        });
 
-        // Fetch gifts
-        const { data: giftsData } = await supabase
-          .from("gifts")
-          .select("*")
-          .eq("wedding_id", weddingData.id);
+        // Actually call with the slug as query param
+        const baseUrl = import.meta.env.VITE_SUPABASE_URL;
+        const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+        
+        const fetchResponse = await fetch(
+          `${baseUrl}/functions/v1/get-public-wedding?slug=${encodeURIComponent(slug)}`,
+          {
+            headers: {
+              'apikey': anonKey,
+              'Content-Type': 'application/json',
+            },
+          }
+        );
 
-        setGifts(giftsData || []);
+        if (!fetchResponse.ok) {
+          const errorData = await fetchResponse.json();
+          setError(errorData.error || "Casamento não encontrado");
+          setLoading(false);
+          return;
+        }
+
+        const publicData = await fetchResponse.json();
+        setWedding(publicData.wedding);
+        setGifts(publicData.gifts || []);
+
       } catch (err) {
+        console.error('Error fetching wedding:', err);
         setError("Erro ao carregar página");
       } finally {
         setLoading(false);

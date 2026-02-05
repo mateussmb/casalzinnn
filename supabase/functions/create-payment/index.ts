@@ -1,24 +1,34 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { z } from "https://deno.land/x/zod@v3.21.4/mod.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-interface CartItem {
-  id: string;
-  name: string;
-  quantity: number;
-  unit_price: number;
-}
+// Input validation schemas
+const CartItemSchema = z.object({
+  id: z.string().min(1).max(100),
+  name: z.string().min(1).max(200).trim(),
+  quantity: z.number().int().min(1).max(100),
+  unit_price: z.number().positive().max(1000000),
+});
 
-interface CreatePreferenceRequest {
-  weddingId: string;
-  items: CartItem[];
-  guestName: string;
-  guestEmail?: string;
-}
+const CreatePaymentSchema = z.object({
+  weddingId: z.string().uuid(),
+  items: z.array(CartItemSchema).min(1).max(50),
+  guestName: z.string().min(1).max(100).trim(),
+  guestEmail: z.string().email().max(255).optional().or(z.literal('')).transform(val => val || undefined),
+});
+
+// Sanitize string for safe storage/display
+const sanitizeString = (str: string): string => {
+  return str
+    .replace(/[<>]/g, '') // Remove potential HTML tags
+    .replace(/javascript:/gi, '') // Remove javascript: protocol
+    .trim();
+};
 
 serve(async (req) => {
   // Handle CORS preflight
@@ -27,14 +37,30 @@ serve(async (req) => {
   }
 
   try {
-    const { weddingId, items, guestName, guestEmail }: CreatePreferenceRequest = await req.json();
-
-    if (!weddingId || !items || items.length === 0) {
+    // Parse and validate input
+    const rawBody = await req.json();
+    
+    const validationResult = CreatePaymentSchema.safeParse(rawBody);
+    
+    if (!validationResult.success) {
+      console.error('Validation error:', validationResult.error.errors);
       return new Response(
-        JSON.stringify({ error: 'Missing required fields' }),
+        JSON.stringify({ 
+          error: 'Invalid input', 
+          details: validationResult.error.errors.map(e => ({
+            field: e.path.join('.'),
+            message: e.message,
+          }))
+        }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    const { weddingId, items, guestName, guestEmail } = validationResult.data;
+
+    // Sanitize user-provided strings
+    const sanitizedGuestName = sanitizeString(guestName);
+    const sanitizedGuestEmail = guestEmail ? sanitizeString(guestEmail) : undefined;
 
     // Create Supabase client with service role to access wedding credentials
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
@@ -63,7 +89,48 @@ serve(async (req) => {
       );
     }
 
-    // Calculate total
+    // Verify items against the gift database to prevent price manipulation
+    const giftIds = items.filter(i => !i.id.startsWith('envelope')).map(i => i.id);
+    
+    if (giftIds.length > 0) {
+      const { data: gifts, error: giftsError } = await supabase
+        .from('gifts')
+        .select('id, price, name')
+        .in('id', giftIds)
+        .eq('wedding_id', weddingId);
+
+      if (giftsError) {
+        console.error('Gifts fetch error:', giftsError);
+        return new Response(
+          JSON.stringify({ error: 'Failed to verify gift prices' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Verify each gift price matches database
+      for (const item of items) {
+        if (item.id.startsWith('envelope')) continue; // Custom envelope amounts
+        
+        const gift = gifts?.find(g => g.id === item.id);
+        if (!gift) {
+          return new Response(
+            JSON.stringify({ error: `Gift not found: ${item.id}` }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+        
+        // Allow small floating point differences
+        if (Math.abs(Number(gift.price) - item.unit_price) > 0.01) {
+          console.error('Price mismatch:', { item, dbPrice: gift.price });
+          return new Response(
+            JSON.stringify({ error: 'Price mismatch detected' }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      }
+    }
+
+    // Calculate total server-side (don't trust client)
     const total = items.reduce((sum, item) => sum + (item.unit_price * item.quantity), 0);
 
     // Create order in database
@@ -71,8 +138,8 @@ serve(async (req) => {
       .from('orders')
       .insert({
         wedding_id: weddingId,
-        guest_name: guestName,
-        guest_email: guestEmail || null,
+        guest_name: sanitizedGuestName,
+        guest_email: sanitizedGuestEmail || null,
         total_amount: total,
         status: 'pending',
       })
@@ -87,11 +154,11 @@ serve(async (req) => {
       );
     }
 
-    // Create order items
+    // Create order items with sanitized names
     const orderItems = items.map(item => ({
       order_id: order.id,
       gift_id: item.id.startsWith('envelope') ? null : item.id,
-      gift_name: item.name,
+      gift_name: sanitizeString(item.name),
       quantity: item.quantity,
       unit_price: item.unit_price,
     }));
@@ -108,14 +175,14 @@ serve(async (req) => {
     const preference = {
       items: items.map(item => ({
         id: item.id,
-        title: item.name,
+        title: sanitizeString(item.name),
         quantity: item.quantity,
         currency_id: "BRL",
         unit_price: item.unit_price,
       })),
       payer: {
-        name: guestName,
-        email: guestEmail || undefined,
+        name: sanitizedGuestName,
+        email: sanitizedGuestEmail || undefined,
       },
       back_urls: {
         success: `${req.headers.get('origin')}/payment-success?order=${order.id}`,
@@ -124,7 +191,7 @@ serve(async (req) => {
       },
       auto_return: "approved",
       external_reference: order.id,
-      statement_descriptor: `Presente ${wedding.couple_name}`.substring(0, 22),
+      statement_descriptor: `Presente ${sanitizeString(wedding.couple_name)}`.substring(0, 22),
       notification_url: `${supabaseUrl}/functions/v1/payment-webhook`,
     };
 
@@ -141,7 +208,7 @@ serve(async (req) => {
       const errorData = await mpResponse.text();
       console.error('Mercado Pago error:', errorData);
       return new Response(
-        JSON.stringify({ error: 'Failed to create payment preference', details: errorData }),
+        JSON.stringify({ error: 'Failed to create payment preference' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -168,7 +235,7 @@ serve(async (req) => {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     console.error('Error:', error);
     return new Response(
-      JSON.stringify({ error: 'Internal server error', message: errorMessage }),
+      JSON.stringify({ error: 'Internal server error' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
