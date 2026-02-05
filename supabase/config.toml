@@ -11,3 +11,6 @@ verify_jwt = false
 
 [functions.validate-mercadopago]
 verify_jwt = false
+
+[functions.get-public-wedding]
+verify_jwt = false
