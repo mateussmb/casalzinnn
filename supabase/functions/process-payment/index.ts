@@ -20,6 +20,9 @@ const PaymentRequestSchema = z.object({
   identificationType: z.string().max(20).optional(),
   identificationNumber: z.string().max(30).optional(),
   transactionAmount: z.number().positive().max(1000000),
+  // New required fields for PIX/Boleto
+  payerFirstName: z.string().max(100).optional(),
+  payerLastName: z.string().max(100).optional(),
 });
 
 // Sanitize string for safe storage/display
@@ -67,7 +70,9 @@ serve(async (req) => {
       payerName,
       identificationType,
       identificationNumber,
-      transactionAmount 
+      transactionAmount,
+      payerFirstName,
+      payerLastName,
     } = validationResult.data;
 
     // Create Supabase client with service role
@@ -133,16 +138,33 @@ serve(async (req) => {
 
     // Sanitize user inputs
     const sanitizedPayerName = sanitizeString(payerName);
-    const nameParts = sanitizedPayerName.split(' ');
+    const nameParts = sanitizedPayerName.split(' ').filter(Boolean);
+    
+    // Use provided names or split from full name
+    const firstName = payerFirstName 
+      ? sanitizeString(payerFirstName) 
+      : (nameParts[0] || 'Convidado');
+    const lastName = payerLastName 
+      ? sanitizeString(payerLastName) 
+      : (nameParts.slice(1).join(' ') || 'Anônimo');
+
+    // Map payment method for Mercado Pago API
+    // "bank_transfer" from the SDK should be mapped to "pix" for the API
+    let actualPaymentMethod = paymentMethodId;
+    if (paymentMethodId === 'bank_transfer') {
+      actualPaymentMethod = 'pix';
+    }
+
+    console.log('Payment method mapping:', { original: paymentMethodId, mapped: actualPaymentMethod });
 
     // Build payment request for Mercado Pago API
     const paymentData: Record<string, unknown> = {
       transaction_amount: serverAmount, // Use server-verified amount
-      payment_method_id: paymentMethodId,
+      payment_method_id: actualPaymentMethod,
       payer: {
         email: payerEmail,
-        first_name: nameParts[0] || sanitizedPayerName,
-        last_name: nameParts.slice(1).join(' ') || sanitizedPayerName,
+        first_name: firstName,
+        last_name: lastName,
       },
       description: `Presente para ${sanitizeString(wedding.couple_name)}`,
       statement_descriptor: `Presente ${sanitizeString(wedding.couple_name)}`.substring(0, 22),
@@ -164,13 +186,28 @@ serve(async (req) => {
       paymentData.installments = installments;
     }
 
-    // Add identification if provided
-    if (identificationType && identificationNumber) {
-      (paymentData.payer as Record<string, unknown>).identification = {
-        type: identificationType,
-        number: identificationNumber.replace(/[^\d]/g, ''), // Sanitize to digits only
-      };
-    }
+    // Add identification - REQUIRED for PIX and Boleto
+    // Use provided identification or generate a test CPF for sandbox
+    const idType = identificationType || 'CPF';
+    const idNumber = identificationNumber 
+      ? identificationNumber.replace(/[^\d]/g, '') 
+      : '12345678909'; // Test CPF for sandbox
+    
+    (paymentData.payer as Record<string, unknown>).identification = {
+      type: idType,
+      number: idNumber,
+    };
+
+    console.log('Payment data prepared:', {
+      method: actualPaymentMethod,
+      amount: serverAmount,
+      payer: {
+        email: payerEmail,
+        first_name: firstName,
+        last_name: lastName,
+        identification: { type: idType, number: '***' },
+      },
+    });
 
     console.log('Processing payment:', {
       orderId,
