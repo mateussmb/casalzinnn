@@ -43,8 +43,8 @@ interface PixData {
 }
 
 // Translate Mercado Pago error codes to user-friendly Portuguese messages
-const translatePaymentError = (errorCode: string | undefined): string => {
-  if (!errorCode) return "Erro desconhecido. Tente novamente.";
+const translatePaymentError = (errorCode: string | undefined, message?: string): string => {
+  if (!errorCode) return message || "Erro desconhecido. Tente novamente.";
   
   const errorMap: Record<string, string> = {
     // Credit card rejections
@@ -75,11 +75,18 @@ const translatePaymentError = (errorCode: string | undefined): string => {
     
     // API errors
     "invalid_escrow_amount": "Valor inválido",
-    "payment_type_not_allowed": "Método de pagamento não permitido",
+    "payment_type_not_allowed": "Método de pagamento não permitido para esta conta",
     "invalid_users_involved": "Erro de configuração do pagamento",
+    "not_result_by_params": "Método de pagamento não encontrado. Verifique suas credenciais do Mercado Pago.",
+    "10102": "Método de pagamento não disponível. Verifique a configuração da conta.",
+    
+    // Additional API errors
+    "invalid_token": "Token de pagamento inválido. Tente novamente.",
+    "missing_parameter": "Dados incompletos. Preencha todos os campos.",
+    "bad_request": "Requisição inválida. Tente novamente.",
   };
 
-  return errorMap[errorCode] || `Erro: ${errorCode.replace(/_/g, " ")}`;
+  return errorMap[errorCode] || message || `Erro: ${errorCode.replace(/_/g, " ")}`;
 };
 
 interface BoletoData {
@@ -239,6 +246,11 @@ const CheckoutModal = ({
       const payer = paymentFormData?.payer || {};
       const identification = payer?.identification || {};
 
+      // Split name into first and last
+      const nameParts = guestName.trim().split(' ').filter(Boolean);
+      const firstName = nameParts[0] || 'Convidado';
+      const lastName = nameParts.slice(1).join(' ') || 'Anônimo';
+
       // Process payment via edge function
       const { data, error } = await supabase.functions.invoke("process-payment", {
         body: {
@@ -250,8 +262,10 @@ const CheckoutModal = ({
           installments: paymentFormData?.installments,
           payerEmail: guestEmail.trim() || `guest-${Date.now()}@wedding.local`,
           payerName: guestName.trim(),
-          identificationType: identification?.type,
-          identificationNumber: identification?.number,
+          payerFirstName: firstName,
+          payerLastName: lastName,
+          identificationType: identification?.type || 'CPF',
+          identificationNumber: identification?.number || '12345678909', // Test CPF for sandbox
           transactionAmount: getTotalPrice(),
         },
       });
@@ -273,7 +287,8 @@ const CheckoutModal = ({
       // Check for error in response data
       if (data?.error) {
         const errorDetail = data.details || data.error;
-        throw new Error(translatePaymentError(errorDetail));
+        const errorMessage = data.message || data.error;
+        throw new Error(translatePaymentError(errorDetail, errorMessage));
       }
 
       // Handle response based on payment type
