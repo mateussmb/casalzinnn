@@ -178,25 +178,71 @@ serve(async (req) => {
       amount: serverAmount,
     });
 
-    // Call Mercado Pago API to create payment
-    const mpResponse = await fetch('https://api.mercadopago.com/v1/payments', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${wedding.mercado_pago_access_token}`,
-        'X-Idempotency-Key': `${orderId}-${Date.now()}`,
-      },
-      body: JSON.stringify(paymentData),
-    });
+    // Call Mercado Pago API to create payment with timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 90000); // 90 second timeout
+    
+    let mpResponse: Response;
+    try {
+      mpResponse = await fetch('https://api.mercadopago.com/v1/payments', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${wedding.mercado_pago_access_token}`,
+          'X-Idempotency-Key': `${orderId}-${Date.now()}`,
+        },
+        body: JSON.stringify(paymentData),
+        signal: controller.signal,
+      });
+    } catch (fetchError: unknown) {
+      clearTimeout(timeoutId);
+      const errorMessage = fetchError instanceof Error ? fetchError.message : 'Unknown error';
+      console.error('Mercado Pago fetch error:', errorMessage);
+      
+      if (errorMessage.includes('abort')) {
+        return new Response(
+          JSON.stringify({ error: 'Tempo limite excedido. Tente novamente.' }),
+          { status: 504, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      
+      return new Response(
+        JSON.stringify({ error: 'Erro de conexão com o Mercado Pago. Tente novamente.' }),
+        { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    clearTimeout(timeoutId);
+
+    // Check content type before parsing
+    const contentType = mpResponse.headers.get('content-type');
+    if (!contentType?.includes('application/json')) {
+      const textResponse = await mpResponse.text();
+      console.error('Mercado Pago returned non-JSON:', textResponse.substring(0, 200));
+      return new Response(
+        JSON.stringify({ error: 'Resposta inválida do Mercado Pago. Tente novamente.' }),
+        { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     const mpData = await mpResponse.json();
 
     if (!mpResponse.ok) {
       console.error('Mercado Pago error:', mpData);
+      
+      // Parse Mercado Pago error for better feedback
+      let errorMessage = 'Falha ao processar pagamento';
+      if (mpData.cause && mpData.cause.length > 0) {
+        errorMessage = mpData.cause[0].description || mpData.cause[0].code || errorMessage;
+      } else if (mpData.message) {
+        errorMessage = mpData.message;
+      } else if (mpData.error) {
+        errorMessage = mpData.error;
+      }
+      
       return new Response(
         JSON.stringify({ 
-          error: 'Payment processing failed', 
-          details: mpData.message || mpData.cause?.[0]?.description || 'Unknown error'
+          error: errorMessage, 
+          details: mpData.cause?.[0]?.code || mpData.status || 'unknown_error'
         }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );

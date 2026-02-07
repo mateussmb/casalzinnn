@@ -42,6 +42,46 @@ interface PixData {
   ticket_url?: string;
 }
 
+// Translate Mercado Pago error codes to user-friendly Portuguese messages
+const translatePaymentError = (errorCode: string | undefined): string => {
+  if (!errorCode) return "Erro desconhecido. Tente novamente.";
+  
+  const errorMap: Record<string, string> = {
+    // Credit card rejections
+    "cc_rejected_bad_filled_card_number": "Número do cartão incorreto",
+    "cc_rejected_bad_filled_date": "Data de validade incorreta",
+    "cc_rejected_bad_filled_other": "Dados do cartão incorretos",
+    "cc_rejected_bad_filled_security_code": "Código de segurança incorreto",
+    "cc_rejected_blacklist": "Cartão não autorizado",
+    "cc_rejected_call_for_authorize": "Autorização necessária. Entre em contato com seu banco.",
+    "cc_rejected_card_disabled": "Cartão desabilitado. Entre em contato com seu banco.",
+    "cc_rejected_card_error": "Erro no cartão. Tente outro cartão.",
+    "cc_rejected_duplicated_payment": "Pagamento duplicado detectado",
+    "cc_rejected_high_risk": "Pagamento recusado por segurança. Tente outro método.",
+    "cc_rejected_insufficient_amount": "Saldo insuficiente",
+    "cc_rejected_invalid_installments": "Parcelas não permitidas",
+    "cc_rejected_max_attempts": "Limite de tentativas atingido. Tente mais tarde.",
+    "cc_rejected_other_reason": "Pagamento recusado pelo banco. Tente outro cartão.",
+    
+    // PIX errors
+    "pending_waiting_transfer": "Aguardando transferência Pix",
+    "pending_waiting_payment": "Aguardando pagamento",
+    
+    // Generic errors
+    "rejected": "Pagamento recusado",
+    "cancelled": "Pagamento cancelado",
+    "refunded": "Pagamento reembolsado",
+    "charged_back": "Pagamento contestado",
+    
+    // API errors
+    "invalid_escrow_amount": "Valor inválido",
+    "payment_type_not_allowed": "Método de pagamento não permitido",
+    "invalid_users_involved": "Erro de configuração do pagamento",
+  };
+
+  return errorMap[errorCode] || `Erro: ${errorCode.replace(/_/g, " ")}`;
+};
+
 interface BoletoData {
   ticket_url: string;
   barcode?: string;
@@ -153,14 +193,28 @@ const CheckoutModal = ({
         },
       });
 
-      if (error || !data?.orderId) {
-        throw new Error(error?.message || "Erro ao criar pedido");
+      if (error) {
+        console.error("Create payment error:", error);
+        // Parse error message for better feedback
+        let errorMessage = "Erro ao criar pedido";
+        if (error.message?.includes("FunctionsFetchError")) {
+          errorMessage = "Erro de conexão. Verifique sua internet e tente novamente.";
+        } else if (error.message?.includes("not configured")) {
+          errorMessage = "Pagamento não configurado. Entre em contato com os noivos.";
+        } else if (error.message) {
+          errorMessage = error.message;
+        }
+        throw new Error(errorMessage);
+      }
+
+      if (!data?.orderId) {
+        throw new Error(data?.error || "Erro ao criar pedido. Tente novamente.");
       }
 
       setOrderId(data.orderId);
       setStep("payment");
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Erro ao processar";
+      const message = err instanceof Error ? err.message : "Erro ao processar pedido";
       toast.error(message);
       console.error("Order creation error:", err);
     } finally {
@@ -203,7 +257,23 @@ const CheckoutModal = ({
       });
 
       if (error) {
-        throw new Error(error.message || "Erro ao processar pagamento");
+        console.error("Process payment error:", error);
+        // Parse specific error messages
+        let errorMessage = "Erro ao processar pagamento";
+        if (error.message?.includes("FunctionsFetchError")) {
+          errorMessage = "Erro de conexão com o servidor de pagamento. Tente novamente.";
+        } else if (error.message?.includes("NOT_FOUND") || error.message?.includes("404")) {
+          errorMessage = "Serviço de pagamento temporariamente indisponível. Tente novamente em alguns minutos.";
+        } else if (error.message) {
+          errorMessage = error.message;
+        }
+        throw new Error(errorMessage);
+      }
+
+      // Check for error in response data
+      if (data?.error) {
+        const errorDetail = data.details || data.error;
+        throw new Error(translatePaymentError(errorDetail));
       }
 
       // Handle response based on payment type
@@ -224,7 +294,8 @@ const CheckoutModal = ({
         clearCart();
         setStep("success");
       } else if (data.status === "rejected") {
-        toast.error(`Pagamento recusado: ${data.status_detail || "Tente outro método"}`);
+        const rejectionReason = translatePaymentError(data.status_detail);
+        toast.error(`Pagamento recusado: ${rejectionReason}`);
       }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Erro ao processar pagamento";
