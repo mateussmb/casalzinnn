@@ -311,7 +311,7 @@ serve(async (req) => {
     };
 
     // For PIX payments, include QR code data
-    if (paymentMethodId === 'pix' && mpData.point_of_interaction?.transaction_data) {
+    if ((actualPaymentMethod === 'pix' || paymentMethodId === 'bank_transfer' || paymentMethodId === 'pix') && mpData.point_of_interaction?.transaction_data) {
       response.pix = {
         qr_code: mpData.point_of_interaction.transaction_data.qr_code,
         qr_code_base64: mpData.point_of_interaction.transaction_data.qr_code_base64,
@@ -320,7 +320,7 @@ serve(async (req) => {
     }
 
     // For boleto, include ticket URL
-    if (paymentMethodId === 'bolbradesco' && mpData.transaction_details?.external_resource_url) {
+    if ((paymentMethodId === 'bolbradesco' || paymentMethodId === 'ticket') && mpData.transaction_details?.external_resource_url) {
       response.boleto = {
         ticket_url: mpData.transaction_details.external_resource_url,
         barcode: mpData.barcode?.content,
