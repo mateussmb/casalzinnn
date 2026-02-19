@@ -6,8 +6,10 @@ import {
   MessageSquare, Users, Camera, Video, Shirt, 
   Plus, Trash2, Edit2, Save, ChevronRight, LogOut,
   CreditCard, Link2, Copy, Check, ExternalLink, Info,
-  Loader2, CheckCircle2, XCircle, AlertCircle, MapPin
+  Loader2, CheckCircle2, XCircle, AlertCircle, MapPin,
+  History
 } from "lucide-react";
+import DashboardHistory from "@/components/wedding/DashboardHistory";
 import { useWedding, Gift as GiftType } from "@/contexts/WeddingContext";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
@@ -94,6 +96,7 @@ const Dashboard = () => {
     image: "",
     externalLink: "",
   });
+  const [dashboardTab, setDashboardTab] = useState<"settings" | "history">("settings");
 
   // Mercado Pago credentials
   const [mercadoPagoPublicKey, setMercadoPagoPublicKey] = useState("");
@@ -356,11 +359,15 @@ const Dashboard = () => {
         weddingId = newWedding.id;
       }
 
-      // Save gifts
-      // First delete existing gifts
-      await supabase.from("gifts").delete().eq("wedding_id", weddingId);
+      // Save gifts - delete existing first then insert new ones
+      const { error: deleteGiftsError } = await supabase.from("gifts").delete().eq("wedding_id", weddingId);
+      
+      if (deleteGiftsError) {
+        console.error("Error deleting gifts:", deleteGiftsError);
+        throw new Error("Erro ao atualizar presentes. Tente novamente.");
+      }
 
-      // Insert new gifts
+      // Insert new gifts only after successful delete
       if (config.gifts.length > 0) {
         const giftsToInsert = config.gifts.map(g => ({
           wedding_id: weddingId,
@@ -371,7 +378,30 @@ const Dashboard = () => {
           external_link: g.externalLink || null,
         }));
 
-        await supabase.from("gifts").insert(giftsToInsert);
+        const { error: insertGiftsError } = await supabase.from("gifts").insert(giftsToInsert);
+        
+        if (insertGiftsError) {
+          console.error("Error inserting gifts:", insertGiftsError);
+          throw new Error("Erro ao salvar presentes. Tente novamente.");
+        }
+
+        // Reload gifts from DB to get proper UUIDs
+        const { data: savedGifts } = await supabase
+          .from("gifts")
+          .select("*")
+          .eq("wedding_id", weddingId);
+
+        if (savedGifts) {
+          const formattedGifts = savedGifts.map(g => ({
+            id: g.id,
+            name: g.name,
+            category: g.category,
+            price: Number(g.price),
+            image: g.image_url || "",
+            externalLink: g.external_link || "",
+          }));
+          updateConfig({ gifts: formattedGifts });
+        }
       }
 
       setWeddingSlug(slug);
@@ -478,9 +508,40 @@ const Dashboard = () => {
             </div>
           </div>
         </div>
+        {/* Tab Navigation */}
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex gap-1">
+            <button
+              onClick={() => setDashboardTab("settings")}
+              className={`flex items-center gap-2 px-5 py-3 text-sm font-medium border-b-2 transition-colors ${
+                dashboardTab === "settings"
+                  ? "border-gold text-gold"
+                  : "border-transparent text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <Settings className="w-4 h-4" />
+              Configurações
+            </button>
+            <button
+              onClick={() => setDashboardTab("history")}
+              className={`flex items-center gap-2 px-5 py-3 text-sm font-medium border-b-2 transition-colors ${
+                dashboardTab === "history"
+                  ? "border-gold text-gold"
+                  : "border-transparent text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <History className="w-4 h-4" />
+              Histórico
+            </button>
+          </div>
+        </div>
       </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+        {dashboardTab === "history" ? (
+          <DashboardHistory />
+        ) : (
+        <>
         {/* Published URL */}
         {publicUrl && (
           <motion.section
@@ -1285,6 +1346,8 @@ const Dashboard = () => {
             <ChevronRight className="w-5 h-5 ml-2" />
           </Button>
         </motion.div>
+        </>
+        )}
       </main>
     </div>
   );
