@@ -171,7 +171,7 @@ const WeddingPage = () => {
         if (fnError) {
           console.log('Falling back to direct query');
           const { data: weddingData, error: weddingError } = await supabase
-            .from("weddings")
+            .from("public_weddings" as any)
             .select(`
               id,
               couple_name,
@@ -217,13 +217,14 @@ const WeddingPage = () => {
             return;
           }
 
-          setWedding(weddingData as WeddingData);
+          setWedding(weddingData as unknown as WeddingData);
 
           // Fetch gifts
+          const typedWedding = weddingData as unknown as WeddingData;
           const { data: giftsData } = await supabase
             .from("gifts")
             .select("id, name, category, price, image_url, external_link")
-            .eq("wedding_id", weddingData.id);
+            .eq("wedding_id", typedWedding.id);
 
           setGifts(giftsData || []);
           setLoading(false);
