@@ -37,45 +37,10 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Fetch wedding with ONLY public fields - explicitly exclude sensitive data
+    // Fetch wedding using the secure public view (excludes mercado_pago_access_token)
     const { data: wedding, error: weddingError } = await supabase
-      .from('weddings')
-      .select(`
-        id,
-        couple_name,
-        wedding_date,
-        tagline,
-        slug,
-        layout,
-        section_about,
-        section_wedding_info,
-        section_gifts,
-        section_rsvp,
-        section_message_wall,
-        section_gallery,
-        section_video,
-        section_dress_code,
-        hero_image_url,
-        video_url,
-        ceremony_date,
-        ceremony_time,
-        ceremony_location,
-        ceremony_address,
-        reception_location,
-        reception_address,
-        reception_time,
-        same_location,
-        about_text,
-        dress_code_text,
-        colors_to_avoid,
-        additional_info,
-        story_photo_1,
-        story_photo_2,
-        story_photo_3,
-        partner1_name,
-        partner2_name,
-        mercado_pago_public_key
-      `)
+      .from('public_weddings')
+      .select('*')
       .eq('slug', validationResult.data.slug)
       .single();
 
