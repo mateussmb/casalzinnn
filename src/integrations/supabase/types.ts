@@ -44,6 +44,13 @@ export type Database = {
             foreignKeyName: "gallery_images_wedding_id_fkey"
             columns: ["wedding_id"]
             isOneToOne: false
+            referencedRelation: "public_weddings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "gallery_images_wedding_id_fkey"
+            columns: ["wedding_id"]
+            isOneToOne: false
             referencedRelation: "weddings"
             referencedColumns: ["id"]
           },
@@ -85,6 +92,13 @@ export type Database = {
             foreignKeyName: "gifts_wedding_id_fkey"
             columns: ["wedding_id"]
             isOneToOne: false
+            referencedRelation: "public_weddings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "gifts_wedding_id_fkey"
+            columns: ["wedding_id"]
+            isOneToOne: false
             referencedRelation: "weddings"
             referencedColumns: ["id"]
           },
@@ -113,6 +127,13 @@ export type Database = {
           wedding_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "messages_wedding_id_fkey"
+            columns: ["wedding_id"]
+            isOneToOne: false
+            referencedRelation: "public_weddings"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "messages_wedding_id_fkey"
             columns: ["wedding_id"]
@@ -209,6 +230,13 @@ export type Database = {
             foreignKeyName: "orders_wedding_id_fkey"
             columns: ["wedding_id"]
             isOneToOne: false
+            referencedRelation: "public_weddings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orders_wedding_id_fkey"
+            columns: ["wedding_id"]
+            isOneToOne: false
             referencedRelation: "weddings"
             referencedColumns: ["id"]
           },
@@ -276,6 +304,13 @@ export type Database = {
           wedding_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "rsvp_responses_wedding_id_fkey"
+            columns: ["wedding_id"]
+            isOneToOne: false
+            referencedRelation: "public_weddings"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "rsvp_responses_wedding_id_fkey"
             columns: ["wedding_id"]
@@ -410,7 +445,117 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      public_weddings: {
+        Row: {
+          about_text: string | null
+          additional_info: string | null
+          ceremony_address: string | null
+          ceremony_date: string | null
+          ceremony_location: string | null
+          ceremony_time: string | null
+          colors_to_avoid: string | null
+          couple_name: string | null
+          dress_code_text: string | null
+          hero_image_url: string | null
+          id: string | null
+          layout: string | null
+          mercado_pago_public_key: string | null
+          partner1_name: string | null
+          partner2_name: string | null
+          reception_address: string | null
+          reception_location: string | null
+          reception_time: string | null
+          same_location: boolean | null
+          section_about: boolean | null
+          section_dress_code: boolean | null
+          section_gallery: boolean | null
+          section_gifts: boolean | null
+          section_message_wall: boolean | null
+          section_rsvp: boolean | null
+          section_video: boolean | null
+          section_wedding_info: boolean | null
+          slug: string | null
+          story_photo_1: string | null
+          story_photo_2: string | null
+          story_photo_3: string | null
+          tagline: string | null
+          video_url: string | null
+          wedding_date: string | null
+        }
+        Insert: {
+          about_text?: string | null
+          additional_info?: string | null
+          ceremony_address?: string | null
+          ceremony_date?: string | null
+          ceremony_location?: string | null
+          ceremony_time?: string | null
+          colors_to_avoid?: string | null
+          couple_name?: string | null
+          dress_code_text?: string | null
+          hero_image_url?: string | null
+          id?: string | null
+          layout?: string | null
+          mercado_pago_public_key?: string | null
+          partner1_name?: string | null
+          partner2_name?: string | null
+          reception_address?: string | null
+          reception_location?: string | null
+          reception_time?: string | null
+          same_location?: boolean | null
+          section_about?: boolean | null
+          section_dress_code?: boolean | null
+          section_gallery?: boolean | null
+          section_gifts?: boolean | null
+          section_message_wall?: boolean | null
+          section_rsvp?: boolean | null
+          section_video?: boolean | null
+          section_wedding_info?: boolean | null
+          slug?: string | null
+          story_photo_1?: string | null
+          story_photo_2?: string | null
+          story_photo_3?: string | null
+          tagline?: string | null
+          video_url?: string | null
+          wedding_date?: string | null
+        }
+        Update: {
+          about_text?: string | null
+          additional_info?: string | null
+          ceremony_address?: string | null
+          ceremony_date?: string | null
+          ceremony_location?: string | null
+          ceremony_time?: string | null
+          colors_to_avoid?: string | null
+          couple_name?: string | null
+          dress_code_text?: string | null
+          hero_image_url?: string | null
+          id?: string | null
+          layout?: string | null
+          mercado_pago_public_key?: string | null
+          partner1_name?: string | null
+          partner2_name?: string | null
+          reception_address?: string | null
+          reception_location?: string | null
+          reception_time?: string | null
+          same_location?: boolean | null
+          section_about?: boolean | null
+          section_dress_code?: boolean | null
+          section_gallery?: boolean | null
+          section_gifts?: boolean | null
+          section_message_wall?: boolean | null
+          section_rsvp?: boolean | null
+          section_video?: boolean | null
+          section_wedding_info?: boolean | null
+          slug?: string | null
+          story_photo_1?: string | null
+          story_photo_2?: string | null
+          story_photo_3?: string | null
+          tagline?: string | null
+          video_url?: string | null
+          wedding_date?: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       generate_wedding_slug: { Args: { couple_name: string }; Returns: string }
