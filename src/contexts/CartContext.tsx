@@ -17,6 +17,8 @@ interface CartContextType {
   includeEnvelope: boolean;
   setIncludeEnvelope: (value: boolean) => void;
   envelopePrice: number;
+  giftMessage: string;
+  setGiftMessage: (value: string) => void;
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
@@ -30,6 +32,7 @@ interface CartProviderProps {
 export const CartProvider = ({ children }: CartProviderProps) => {
   const [items, setItems] = useState<CartItem[]>([]);
   const [includeEnvelope, setIncludeEnvelope] = useState(true);
+  const [giftMessage, setGiftMessage] = useState("");
 
   const addItem = (gift: Gift) => {
     setItems((prev) => {
@@ -64,6 +67,7 @@ export const CartProvider = ({ children }: CartProviderProps) => {
   const clearCart = () => {
     setItems([]);
     setIncludeEnvelope(true);
+    setGiftMessage("");
   };
 
   const getTotalItems = () => {
@@ -91,6 +95,8 @@ export const CartProvider = ({ children }: CartProviderProps) => {
         includeEnvelope,
         setIncludeEnvelope,
         envelopePrice: ENVELOPE_PRICE,
+        giftMessage,
+        setGiftMessage,
       }}
     >
       {children}

@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { MessageSquare } from "lucide-react";
 import {
   X,
   Minus,
@@ -22,6 +23,7 @@ import { useCart } from "@/contexts/CartContext";
 import { useWedding } from "@/contexts/WeddingContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { supabase } from "@/integrations/supabase/client";
@@ -110,6 +112,8 @@ const CheckoutModal = ({
     includeEnvelope,
     setIncludeEnvelope,
     envelopePrice,
+    giftMessage,
+    setGiftMessage,
   } = useCart();
 
   const [step, setStep] = useState<CheckoutStep>("cart");
@@ -236,6 +240,7 @@ const CheckoutModal = ({
       return;
     }
 
+    if (loading) return; // Prevent double submit
     setLoading(true);
 
     try {
@@ -532,6 +537,46 @@ const CheckoutModal = ({
                         </div>
                       </div>
                     </div>
+
+                    {/* Gift message */}
+                    <div className="p-4 bg-secondary/50 border border-border rounded-lg">
+                      <div className="flex items-center gap-2 mb-3">
+                        <MessageSquare className="w-4 h-4 text-gold" />
+                        <Label className="font-medium text-foreground cursor-pointer">
+                          Mensagem para o casal (opcional)
+                        </Label>
+                      </div>
+                      <Textarea
+                        value={giftMessage}
+                        onChange={(e) => setGiftMessage(e.target.value)}
+                        placeholder="Escreva uma mensagem carinhosa..."
+                        className="mb-3 bg-card"
+                        rows={3}
+                        maxLength={300}
+                      />
+                      <div className="flex flex-wrap gap-2">
+                        {[
+                          "Felicidades ao casal! 💕",
+                          "Que Deus abençoe essa união! 🙏",
+                          "Muita felicidade nessa nova jornada! 🎉",
+                          "Com muito carinho e amor! ❤️",
+                        ].map((msg) => (
+                          <button
+                            key={msg}
+                            type="button"
+                            onClick={() => setGiftMessage(msg)}
+                            className="text-xs px-3 py-1.5 rounded-full bg-card border border-border hover:border-gold hover:text-gold transition-colors"
+                          >
+                            {msg}
+                          </button>
+                        ))}
+                      </div>
+                      {giftMessage && (
+                        <p className="text-xs text-muted-foreground mt-2 text-right">
+                          {giftMessage.length}/300
+                        </p>
+                      )}
+                    </div>
                   </>
                 )}
               </div>
@@ -567,7 +612,14 @@ const CheckoutModal = ({
             )}
 
             {step === "payment" && mpInitialized && (
-              <div className="space-y-4">
+              <div className="space-y-4 relative">
+                {loading && (
+                  <div className="absolute inset-0 bg-card/80 backdrop-blur-sm z-10 flex flex-col items-center justify-center rounded-lg">
+                    <Loader2 className="w-10 h-10 animate-spin text-gold mb-3" />
+                    <p className="text-sm font-medium text-foreground">Processando pagamento...</p>
+                    <p className="text-xs text-muted-foreground mt-1">Aguarde, não feche esta tela</p>
+                  </div>
+                )}
                 {!mercadoPagoPublicKey ? (
                   <div className="text-center py-8">
                     <AlertCircle className="w-12 h-12 text-destructive mx-auto mb-3" />
