@@ -81,7 +81,7 @@ const PublicWeddingInfo = () => {
 
               <div className="rounded-lg overflow-hidden h-64 bg-muted">
                 <iframe
-                  src={`https://maps.google.com/maps?q=${encodeURIComponent(config.ceremonyAddress)}&t=&z=15&ie=UTF8&iwloc=&output=embed`}
+                  src={`https://www.google.com/maps?q=${encodeURIComponent(config.ceremonyLocation + ', ' + config.ceremonyAddress)}&z=15&output=embed`}
                   width="100%"
                   height="100%"
                   style={{ border: 0 }}
@@ -130,7 +130,7 @@ const PublicWeddingInfo = () => {
 
               <div className="rounded-lg overflow-hidden h-48 bg-muted">
                 <iframe
-                  src={`https://maps.google.com/maps?q=${encodeURIComponent(config.ceremonyAddress)}&t=&z=15&ie=UTF8&iwloc=&output=embed`}
+                  src={`https://www.google.com/maps?q=${encodeURIComponent(config.ceremonyLocation + ', ' + config.ceremonyAddress)}&z=15&output=embed`}
                   width="100%"
                   height="100%"
                   style={{ border: 0 }}
@@ -176,7 +176,7 @@ const PublicWeddingInfo = () => {
 
               <div className="rounded-lg overflow-hidden h-48 bg-muted">
                 <iframe
-                  src={`https://maps.google.com/maps?q=${encodeURIComponent(config.receptionAddress)}&t=&z=15&ie=UTF8&iwloc=&output=embed`}
+                  src={`https://www.google.com/maps?q=${encodeURIComponent(config.receptionLocation + ', ' + config.receptionAddress)}&z=15&output=embed`}
                   width="100%"
                   height="100%"
                   style={{ border: 0 }}

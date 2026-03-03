@@ -17,6 +17,7 @@ import {
   Copy,
   ExternalLink,
   AlertCircle,
+  Users,
 } from "lucide-react";
 import { initMercadoPago, Payment } from "@mercadopago/sdk-react";
 import { useCart } from "@/contexts/CartContext";
@@ -49,7 +50,6 @@ const translatePaymentError = (errorCode: string | undefined, message?: string):
   if (!errorCode) return message || "Erro desconhecido. Tente novamente.";
   
   const errorMap: Record<string, string> = {
-    // Credit card rejections
     "cc_rejected_bad_filled_card_number": "Número do cartão incorreto",
     "cc_rejected_bad_filled_date": "Data de validade incorreta",
     "cc_rejected_bad_filled_other": "Dados do cartão incorretos",
@@ -64,25 +64,17 @@ const translatePaymentError = (errorCode: string | undefined, message?: string):
     "cc_rejected_invalid_installments": "Parcelas não permitidas",
     "cc_rejected_max_attempts": "Limite de tentativas atingido. Tente mais tarde.",
     "cc_rejected_other_reason": "Pagamento recusado pelo banco. Tente outro cartão.",
-    
-    // PIX errors
     "pending_waiting_transfer": "Aguardando transferência Pix",
     "pending_waiting_payment": "Aguardando pagamento",
-    
-    // Generic errors
     "rejected": "Pagamento recusado",
     "cancelled": "Pagamento cancelado",
     "refunded": "Pagamento reembolsado",
     "charged_back": "Pagamento contestado",
-    
-    // API errors
     "invalid_escrow_amount": "Valor inválido",
     "payment_type_not_allowed": "Método de pagamento não permitido para esta conta",
     "invalid_users_involved": "Erro de configuração do pagamento",
     "not_result_by_params": "Método de pagamento não encontrado. Verifique suas credenciais do Mercado Pago.",
     "10102": "Método de pagamento não disponível. Verifique a configuração da conta.",
-    
-    // Additional API errors
     "invalid_token": "Token de pagamento inválido. Tente novamente.",
     "missing_parameter": "Dados incompletos. Preencha todos os campos.",
     "bad_request": "Requisição inválida. Tente novamente.",
@@ -125,6 +117,10 @@ const CheckoutModal = ({
   const [pixData, setPixData] = useState<PixData | null>(null);
   const [boletoData, setBoletoData] = useState<BoletoData | null>(null);
   const [pixCopied, setPixCopied] = useState(false);
+  
+  // RSVP confirmation in checkout
+  const [confirmAttendance, setConfirmAttendance] = useState(false);
+  const [attendanceGuests, setAttendanceGuests] = useState(1);
 
   // Initialize Mercado Pago SDK
   useEffect(() => {
@@ -146,6 +142,8 @@ const CheckoutModal = ({
       setOrderId(null);
       setPixData(null);
       setBoletoData(null);
+      setConfirmAttendance(false);
+      setAttendanceGuests(1);
     }
     onClose();
   };
@@ -177,6 +175,22 @@ const CheckoutModal = ({
     setLoading(true);
 
     try {
+      // Save RSVP if confirmed
+      if (confirmAttendance && weddingId) {
+        try {
+          await supabase.from("rsvp_responses").insert({
+            wedding_id: weddingId,
+            guest_name: guestName.trim(),
+            guests_count: attendanceGuests,
+            attendance: "confirmed",
+            guest_email: guestEmail.trim() || null,
+          });
+        } catch (rsvpErr) {
+          console.error("RSVP save error:", rsvpErr);
+          // Don't block payment for RSVP error
+        }
+      }
+
       // Create order in database first
       const paymentItems = items.map((item) => ({
         id: item.gift.id,
@@ -206,7 +220,6 @@ const CheckoutModal = ({
 
       if (error) {
         console.error("Create payment error:", error);
-        // Parse error message for better feedback
         let errorMessage = "Erro ao criar pedido";
         if (error.message?.includes("FunctionsFetchError")) {
           errorMessage = "Erro de conexão. Verifique sua internet e tente novamente.";
@@ -256,6 +269,9 @@ const CheckoutModal = ({
       const firstName = nameParts[0] || 'Convidado';
       const lastName = nameParts.slice(1).join(' ') || 'Anônimo';
 
+      // Use the email from step 2 (guestEmail) consistently
+      const payerEmail = guestEmail.trim() || `guest-${Date.now()}@wedding.local`;
+
       // Process payment via edge function
       const { data, error } = await supabase.functions.invoke("process-payment", {
         body: {
@@ -264,20 +280,19 @@ const CheckoutModal = ({
           paymentMethodId: paymentMethod,
           token: paymentFormData?.token,
           issuerId: paymentFormData?.issuer_id,
-          installments: paymentFormData?.installments,
-          payerEmail: guestEmail.trim() || `guest-${Date.now()}@wedding.local`,
+          installments: paymentFormData?.installments || 1,
+          payerEmail,
           payerName: guestName.trim(),
           payerFirstName: firstName,
           payerLastName: lastName,
           identificationType: identification?.type || 'CPF',
-          identificationNumber: identification?.number || '12345678909', // Test CPF for sandbox
+          identificationNumber: identification?.number || '12345678909',
           transactionAmount: getTotalPrice(),
         },
       });
 
       if (error) {
         console.error("Process payment error:", error);
-        // Parse specific error messages
         let errorMessage = "Erro ao processar pagamento";
         if (error.message?.includes("FunctionsFetchError")) {
           errorMessage = "Erro de conexão com o servidor de pagamento. Tente novamente.";
@@ -605,8 +620,53 @@ const CheckoutModal = ({
                     className="mt-1.5"
                   />
                   <p className="text-xs text-muted-foreground mt-1">
-                    Usado para enviar o comprovante do presente
+                    Usado para enviar o comprovante do presente e no pagamento
                   </p>
+                </div>
+
+                {/* RSVP Confirmation */}
+                <div className="p-4 bg-gold/5 border border-gold/20 rounded-lg">
+                  <div className="flex items-start gap-3">
+                    <Checkbox
+                      id="confirmAttendance"
+                      checked={confirmAttendance}
+                      onCheckedChange={(checked) =>
+                        setConfirmAttendance(checked === true)
+                      }
+                      className="mt-1"
+                    />
+                    <div className="flex-1">
+                      <label
+                        htmlFor="confirmAttendance"
+                        className="font-medium text-foreground cursor-pointer flex items-center gap-2"
+                      >
+                        <Users className="w-4 h-4 text-gold" />
+                        Confirmar presença no casamento
+                      </label>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        Aproveite para confirmar sua presença junto com o presente
+                      </p>
+                    </div>
+                  </div>
+                  {confirmAttendance && (
+                    <div className="mt-3 ml-7">
+                      <Label htmlFor="attendanceGuests" className="text-sm">
+                        Quantidade de pessoas (incluindo você)
+                      </Label>
+                      <select
+                        id="attendanceGuests"
+                        value={attendanceGuests}
+                        onChange={(e) => setAttendanceGuests(parseInt(e.target.value))}
+                        className="mt-1 w-full px-3 py-2 rounded-md border border-input bg-background text-sm"
+                      >
+                        {[1, 2, 3, 4, 5].map((num) => (
+                          <option key={num} value={num}>
+                            {num} {num === 1 ? "pessoa" : "pessoas"}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -670,6 +730,11 @@ const CheckoutModal = ({
                 <p className="text-muted-foreground">
                   Seu presente para {config.coupleName} foi registrado com sucesso.
                 </p>
+                {confirmAttendance && (
+                  <p className="text-sm text-gold">
+                    ✓ Sua presença foi confirmada para {attendanceGuests} {attendanceGuests === 1 ? "pessoa" : "pessoas"}
+                  </p>
+                )}
               </div>
             )}
 
