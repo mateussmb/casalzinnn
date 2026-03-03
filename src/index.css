@@ -2,10 +2,11 @@
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&family=Inter:wght@300;400;500;600;700&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&display=swap');
 
 @layer base {
-  :root {
+  :root,
+  :root[data-layout="classic"] {
     /* Romantic Wedding Palette */
     --background: 40 33% 98%;
     --foreground: 25 30% 20%;
@@ -58,6 +59,10 @@
     --shadow-card: 0 8px 30px -8px hsl(25 30% 20% / 0.1);
     --shadow-elevated: 0 20px 50px -12px hsl(25 30% 20% / 0.15);
 
+    /* Layout-specific */
+    --section-radius: 0.5rem;
+    --heading-weight: 500;
+
     --sidebar-background: 0 0% 98%;
     --sidebar-foreground: 240 5.3% 26.1%;
     --sidebar-primary: 240 5.9% 10%;
@@ -66,6 +71,90 @@
     --sidebar-accent-foreground: 240 5.9% 10%;
     --sidebar-border: 220 13% 91%;
     --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+
+  /* Modern Layout */
+  :root[data-layout="modern"] {
+    --background: 220 14% 96%;
+    --foreground: 220 20% 15%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 220 20% 15%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 20% 15%;
+
+    --primary: 220 70% 50%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 220 14% 92%;
+    --secondary-foreground: 220 20% 20%;
+
+    --muted: 220 14% 94%;
+    --muted-foreground: 220 10% 45%;
+
+    --accent: 220 30% 90%;
+    --accent-foreground: 220 20% 15%;
+
+    --border: 220 13% 88%;
+    --input: 220 13% 90%;
+    --ring: 220 70% 50%;
+
+    --gold: 220 70% 50%;
+    --gold-light: 220 60% 70%;
+    --cream: 220 14% 96%;
+
+    --font-serif: 'Inter', 'DM Sans', system-ui, sans-serif;
+    --font-sans: 'Inter', system-ui, sans-serif;
+
+    --shadow-soft: 0 1px 3px hsl(220 20% 15% / 0.06);
+    --shadow-card: 0 4px 12px hsl(220 20% 15% / 0.08);
+    --shadow-elevated: 0 12px 36px hsl(220 20% 15% / 0.12);
+
+    --section-radius: 1rem;
+    --heading-weight: 600;
+  }
+
+  /* Minimalist Layout */
+  :root[data-layout="minimalist"] {
+    --background: 0 0% 99%;
+    --foreground: 0 0% 12%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 12%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 12%;
+
+    --primary: 0 0% 20%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 0 0% 95%;
+    --secondary-foreground: 0 0% 20%;
+
+    --muted: 0 0% 96%;
+    --muted-foreground: 0 0% 45%;
+
+    --accent: 0 0% 92%;
+    --accent-foreground: 0 0% 12%;
+
+    --border: 0 0% 90%;
+    --input: 0 0% 92%;
+    --ring: 0 0% 30%;
+
+    --gold: 0 0% 25%;
+    --gold-light: 0 0% 55%;
+    --cream: 0 0% 98%;
+
+    --font-serif: 'Cormorant Garamond', Georgia, serif;
+    --font-sans: 'DM Sans', system-ui, sans-serif;
+
+    --shadow-soft: 0 1px 2px hsl(0 0% 0% / 0.04);
+    --shadow-card: 0 2px 8px hsl(0 0% 0% / 0.06);
+    --shadow-elevated: 0 8px 24px hsl(0 0% 0% / 0.08);
+
+    --section-radius: 0;
+    --heading-weight: 300;
   }
 
   .dark {
@@ -246,4 +335,16 @@ html {
 
 ::-webkit-scrollbar-thumb:hover {
   background: hsl(var(--gold));
+}
+
+/* Hide Lovable badge */
+#lovable-badge-text {
+  display: none !important;
+}
+
+/* Fix toast not overlapping cart on mobile */
+@media (max-width: 640px) {
+  .toaster.group {
+    bottom: 80px !important;
+  }
 }

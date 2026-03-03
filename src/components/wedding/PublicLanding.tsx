@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useWedding, WeddingConfig } from "@/contexts/WeddingContext";
 import { CartProvider } from "@/contexts/CartContext";
 import PublicHero from "./PublicHero";
@@ -30,6 +30,14 @@ const PublicLandingContent = ({
 }) => {
   const { config } = useWedding();
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
+
+  // Apply layout theme to root element
+  useEffect(() => {
+    document.documentElement.setAttribute('data-layout', config.layout || 'classic');
+    return () => {
+      document.documentElement.removeAttribute('data-layout');
+    };
+  }, [config.layout]);
 
   return (
     <>

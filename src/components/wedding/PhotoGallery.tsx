@@ -1,7 +1,8 @@
 import { motion } from "framer-motion";
 import { useInView } from "framer-motion";
 import { useRef, useState } from "react";
-import { X } from "lucide-react";
+import { X, Heart } from "lucide-react";
+import { useWedding } from "@/contexts/WeddingContext";
 import heroCoupleImage from "@/assets/hero-couple.jpg";
 import coupleStory1 from "@/assets/couple-story-1.jpg";
 import coupleStory2 from "@/assets/couple-story-2.jpg";
@@ -18,14 +19,30 @@ const PhotoGallery = () => {
   const ref = useRef(null);
   const isInView = useInView(ref, { once: true, margin: "-100px" });
   const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
+  const { config } = useWedding();
 
-  const photos: Photo[] = [
-    { src: heroCoupleImage, alt: "Camila e Rafael - Foto principal", span: "both" },
+  // Use couple's uploaded photos if available, otherwise fallback to defaults
+  const hasStoryPhotos = config.storyPhotos && config.storyPhotos.length > 0;
+  const defaultPhotos: Photo[] = [
+    { src: heroCoupleImage, alt: "Foto principal", span: "both" },
     { src: coupleStory1, alt: "Passeio no jardim" },
     { src: coupleStory2, alt: "Momento de risadas" },
     { src: coupleStory3, alt: "O pedido" },
     { src: venueImage, alt: "Local da cerimônia", span: "col" },
   ];
+
+  const couplePhotos: Photo[] = hasStoryPhotos
+    ? [
+        ...(config.heroImage ? [{ src: config.heroImage, alt: `${config.coupleName} - Foto principal`, span: "both" as const }] : []),
+        ...config.storyPhotos.map((src, i) => ({
+          src,
+          alt: `${config.coupleName} - Momento ${i + 1}`,
+          span: i === 0 && !config.heroImage ? "both" as const : undefined,
+        })),
+      ]
+    : defaultPhotos;
+
+  const photos = couplePhotos.length > 0 ? couplePhotos : defaultPhotos;
 
   return (
     <>
