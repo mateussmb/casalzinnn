@@ -44,10 +44,12 @@ const PublicRSVP = ({ weddingId }: PublicRSVPProps) => {
     setLoading(true);
     
     try {
+      const sanitizedName = formData.name.trim().replace(/[<>]/g, '').substring(0, 200);
+      const clampedGuests = Math.max(1, Math.min(20, formData.guests));
       const { error } = await supabase.from("rsvp_responses").insert({
         wedding_id: weddingId,
-        guest_name: formData.name.trim().substring(0, 200),
-        guests_count: formData.guests,
+        guest_name: sanitizedName,
+        guests_count: clampedGuests,
         attendance: formData.attending === "yes" ? "confirmed" : "declined",
       });
 
