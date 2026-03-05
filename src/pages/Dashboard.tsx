@@ -97,7 +97,7 @@ const Dashboard = () => {
     externalLink: "",
   });
   const [dashboardTab, setDashboardTab] = useState<"settings" | "history">("settings");
-  const [initialLoaded, setInitialLoaded] = useState(false);
+  const [initialLoaded, setInitialLoaded] = useState<boolean>(false);
 
   // Mercado Pago credentials
   const [mercadoPagoPublicKey, setMercadoPagoPublicKey] = useState("");
