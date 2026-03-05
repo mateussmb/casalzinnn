@@ -178,12 +178,15 @@ const CheckoutModal = ({
       // Save RSVP if confirmed
       if (confirmAttendance && weddingId) {
         try {
+          const sanitizedName = guestName.trim().replace(/[<>]/g, '').substring(0, 200);
+          const sanitizedEmail = guestEmail.trim().replace(/[<>]/g, '').substring(0, 255) || null;
+          const clampedGuests = Math.max(1, Math.min(20, attendanceGuests));
           await supabase.from("rsvp_responses").insert({
             wedding_id: weddingId,
-            guest_name: guestName.trim(),
-            guests_count: attendanceGuests,
+            guest_name: sanitizedName,
+            guests_count: clampedGuests,
             attendance: "confirmed",
-            guest_email: guestEmail.trim() || null,
+            guest_email: sanitizedEmail,
           });
         } catch (rsvpErr) {
           console.error("RSVP save error:", rsvpErr);
