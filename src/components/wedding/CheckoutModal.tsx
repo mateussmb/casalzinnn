@@ -386,7 +386,7 @@ const CheckoutModal = ({
           initial={{ opacity: 0, scale: 0.95, y: 20 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 20 }}
-          className="bg-card rounded-2xl shadow-elevated max-w-lg w-full max-h-[90vh] overflow-hidden"
+          className="bg-card rounded-2xl shadow-elevated max-w-lg w-full max-h-[90vh] overflow-hidden flex flex-col"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
@@ -452,7 +452,7 @@ const CheckoutModal = ({
           )}
 
           {/* Content */}
-          <div className="p-6 overflow-y-auto max-h-[50vh]">
+          <div className="p-6 overflow-y-auto flex-1 min-h-0">
             {step === "cart" && (
               <div className="space-y-4">
                 {items.length === 0 ? (
@@ -699,11 +699,8 @@ const CheckoutModal = ({
                       customization={{
                         paymentMethods: {
                           creditCard: "all",
-                          debitCard: "all",
                           ticket: "all",
                           bankTransfer: "all",
-                          atm: "all",
-                          mercadoPago: "all",
                         },
                         visual: {
                           style: {

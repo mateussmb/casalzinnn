@@ -338,7 +338,8 @@ html {
 }
 
 /* Hide Lovable badge */
-#lovable-badge-text {
+#lovable-badge-text,
+#lovable-badge {
   display: none !important;
 }
 
@@ -346,5 +347,12 @@ html {
 @media (max-width: 640px) {
   .toaster.group {
     bottom: 80px !important;
+  }
+
+  /* Fix mobile checkout modal max-height */
+  .mercadopago-container {
+    max-height: 50vh;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
   }
 }
