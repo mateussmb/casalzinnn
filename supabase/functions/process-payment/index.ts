@@ -150,12 +150,19 @@ serve(async (req) => {
 
     // Map payment method for Mercado Pago API
     // "bank_transfer" from the SDK should be mapped to "pix" for the API
+    // "ticket" is a generic type — if received, map to "bolbradesco" as default
     let actualPaymentMethod = paymentMethodId;
     if (paymentMethodId === 'bank_transfer') {
       actualPaymentMethod = 'pix';
+    } else if (paymentMethodId === 'ticket') {
+      actualPaymentMethod = 'bolbradesco';
     }
 
-    console.log('Payment method mapping:', { original: paymentMethodId, mapped: actualPaymentMethod });
+    // Determine if this is a credit card payment (needs token)
+    const isCreditCard = !!token && !['pix', 'bank_transfer', 'bolbradesco', 'ticket'].includes(paymentMethodId);
+    const isBoleto = ['bolbradesco', 'ticket'].includes(paymentMethodId) || actualPaymentMethod === 'bolbradesco';
+
+    console.log('Payment method mapping:', { original: paymentMethodId, mapped: actualPaymentMethod, isCreditCard, isBoleto });
 
     // Build payment request for Mercado Pago API
     const paymentData: Record<string, unknown> = {
@@ -186,17 +193,18 @@ serve(async (req) => {
       paymentData.installments = installments;
     }
 
-    // Add identification - REQUIRED for PIX and Boleto
-    // Use provided identification or generate a test CPF for sandbox
+    // Add identification - REQUIRED for PIX, Boleto, and recommended for credit cards
     const idType = identificationType || 'CPF';
     const idNumber = identificationNumber 
       ? identificationNumber.replace(/[^\d]/g, '') 
-      : '12345678909'; // Test CPF for sandbox
+      : '';
     
-    (paymentData.payer as Record<string, unknown>).identification = {
-      type: idType,
-      number: idNumber,
-    };
+    if (idNumber) {
+      (paymentData.payer as Record<string, unknown>).identification = {
+        type: idType,
+        number: idNumber,
+      };
+    }
 
     console.log('Payment data prepared:', {
       method: actualPaymentMethod,
@@ -320,9 +328,10 @@ serve(async (req) => {
     }
 
     // For boleto, include ticket URL
-    if ((paymentMethodId === 'bolbradesco' || paymentMethodId === 'ticket') && mpData.transaction_details?.external_resource_url) {
+    if ((paymentMethodId === 'bolbradesco' || paymentMethodId === 'ticket' || actualPaymentMethod === 'bolbradesco') && 
+        (mpData.transaction_details?.external_resource_url || mpData.point_of_interaction?.transaction_data?.ticket_url)) {
       response.boleto = {
-        ticket_url: mpData.transaction_details.external_resource_url,
+        ticket_url: mpData.transaction_details?.external_resource_url || mpData.point_of_interaction?.transaction_data?.ticket_url,
         barcode: mpData.barcode?.content,
       };
     }
