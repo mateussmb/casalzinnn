@@ -260,8 +260,16 @@ const CheckoutModal = ({
     setLoading(true);
 
     try {
-      const paymentMethod = formData.selectedPaymentMethod || formData.payment_method_id;
+      // The Payment Brick returns: { selectedPaymentMethod, formData: { token, payment_method_id, ... } }
+      const selectedMethod = formData.selectedPaymentMethod; // "credit_card", "bank_transfer", "ticket"
       const paymentFormData = formData.formData || formData;
+
+      // For credit card, use the actual card brand (visa, mastercard, etc.) from formData
+      // For bank_transfer (Pix), keep "bank_transfer" — edge function maps it to "pix"
+      // For ticket (Boleto), use the actual payment_method_id from formData (e.g. "bolbradesco")
+      const paymentMethod = paymentFormData?.payment_method_id || selectedMethod || formData.payment_method_id;
+
+      console.log('Payment submission:', { selectedMethod, paymentMethod, formData: paymentFormData });
 
       // Extract payer identification safely
       const payer = paymentFormData?.payer || {};
@@ -289,7 +297,7 @@ const CheckoutModal = ({
           payerFirstName: firstName,
           payerLastName: lastName,
           identificationType: identification?.type || 'CPF',
-          identificationNumber: identification?.number || '12345678909',
+          identificationNumber: identification?.number || '',
           transactionAmount: getTotalPrice(),
         },
       });
