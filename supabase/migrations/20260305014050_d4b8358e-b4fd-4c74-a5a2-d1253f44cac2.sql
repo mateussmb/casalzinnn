@@ -1,0 +1,1 @@
+DROP POLICY "Anyone can view wedding by slug" ON public.weddings;
