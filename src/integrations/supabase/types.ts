@@ -559,6 +559,7 @@ export type Database = {
     }
     Functions: {
       generate_wedding_slug: { Args: { couple_name: string }; Returns: string }
+      is_public_wedding: { Args: { w_id: string }; Returns: boolean }
     }
     Enums: {
       [_ in never]: never
