@@ -97,6 +97,7 @@ const Dashboard = () => {
     externalLink: "",
   });
   const [dashboardTab, setDashboardTab] = useState<"settings" | "history">("settings");
+  const [initialLoaded, setInitialLoaded] = useState(false);
 
   // Mercado Pago credentials
   const [mercadoPagoPublicKey, setMercadoPagoPublicKey] = useState("");
@@ -114,10 +115,10 @@ const Dashboard = () => {
   const [storyPhoto2, setStoryPhoto2] = useState("");
   const [storyPhoto3, setStoryPhoto3] = useState("");
 
-  // Load existing wedding data
+  // Load existing wedding data - only once on mount
   useEffect(() => {
     const loadWeddingData = async () => {
-      if (!user) return;
+      if (!user || initialLoaded) return;
 
       const { data: wedding } = await supabase
         .from("weddings")
@@ -187,11 +188,13 @@ const Dashboard = () => {
           }));
           updateConfig({ gifts: formattedGifts });
         }
+
+        setInitialLoaded(true);
       }
     };
 
     loadWeddingData();
-  }, [user]);
+  }, [user, initialLoaded]);
 
   const generateSlug = (coupleName: string): string => {
     return coupleName
