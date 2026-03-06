@@ -110,6 +110,12 @@ const Dashboard = () => {
     isTestMode?: boolean;
   } | null>(null);
 
+  // Payment method toggles
+  const [paymentCreditCard, setPaymentCreditCard] = useState(true);
+  const [paymentPix, setPaymentPix] = useState(true);
+  const [paymentBoleto, setPaymentBoleto] = useState(true);
+  const [maxInstallments, setMaxInstallments] = useState(12);
+
   // Story photos
   const [storyPhoto1, setStoryPhoto1] = useState("");
   const [storyPhoto2, setStoryPhoto2] = useState("");
