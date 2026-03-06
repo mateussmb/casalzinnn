@@ -936,18 +936,24 @@ const CheckoutModal = ({
 
             {step === "payment" && (
               <div className="flex items-center justify-center gap-4 mt-4 pt-4 border-t border-border">
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <QrCode className="w-4 h-4" />
-                  <span>Pix</span>
-                </div>
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <CreditCard className="w-4 h-4" />
-                  <span>Cartão</span>
-                </div>
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <FileText className="w-4 h-4" />
-                  <span>Boleto</span>
-                </div>
+                {paymentPix && (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <QrCode className="w-4 h-4" />
+                    <span>Pix</span>
+                  </div>
+                )}
+                {paymentCreditCard && (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <CreditCard className="w-4 h-4" />
+                    <span>Cartão</span>
+                  </div>
+                )}
+                {paymentBoleto && (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <FileText className="w-4 h-4" />
+                    <span>Boleto</span>
+                  </div>
+                )}
               </div>
             )}
           </div>
