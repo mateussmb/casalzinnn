@@ -335,10 +335,14 @@ export type Database = {
           hero_image_url: string | null
           id: string
           layout: string
+          max_installments: number
           mercado_pago_access_token: string | null
           mercado_pago_public_key: string | null
           partner1_name: string
           partner2_name: string
+          payment_boleto: boolean
+          payment_credit_card: boolean
+          payment_pix: boolean
           reception_address: string | null
           reception_location: string | null
           reception_time: string | null
@@ -375,10 +379,14 @@ export type Database = {
           hero_image_url?: string | null
           id?: string
           layout?: string
+          max_installments?: number
           mercado_pago_access_token?: string | null
           mercado_pago_public_key?: string | null
           partner1_name?: string
           partner2_name?: string
+          payment_boleto?: boolean
+          payment_credit_card?: boolean
+          payment_pix?: boolean
           reception_address?: string | null
           reception_location?: string | null
           reception_time?: string | null
@@ -415,10 +423,14 @@ export type Database = {
           hero_image_url?: string | null
           id?: string
           layout?: string
+          max_installments?: number
           mercado_pago_access_token?: string | null
           mercado_pago_public_key?: string | null
           partner1_name?: string
           partner2_name?: string
+          payment_boleto?: boolean
+          payment_credit_card?: boolean
+          payment_pix?: boolean
           reception_address?: string | null
           reception_location?: string | null
           reception_time?: string | null
@@ -459,9 +471,13 @@ export type Database = {
           hero_image_url: string | null
           id: string | null
           layout: string | null
+          max_installments: number | null
           mercado_pago_public_key: string | null
           partner1_name: string | null
           partner2_name: string | null
+          payment_boleto: boolean | null
+          payment_credit_card: boolean | null
+          payment_pix: boolean | null
           reception_address: string | null
           reception_location: string | null
           reception_time: string | null
@@ -495,9 +511,13 @@ export type Database = {
           hero_image_url?: string | null
           id?: string | null
           layout?: string | null
+          max_installments?: number | null
           mercado_pago_public_key?: string | null
           partner1_name?: string | null
           partner2_name?: string | null
+          payment_boleto?: boolean | null
+          payment_credit_card?: boolean | null
+          payment_pix?: boolean | null
           reception_address?: string | null
           reception_location?: string | null
           reception_time?: string | null
@@ -531,9 +551,13 @@ export type Database = {
           hero_image_url?: string | null
           id?: string | null
           layout?: string | null
+          max_installments?: number | null
           mercado_pago_public_key?: string | null
           partner1_name?: string | null
           partner2_name?: string | null
+          payment_boleto?: boolean | null
+          payment_credit_card?: boolean | null
+          payment_pix?: boolean | null
           reception_address?: string | null
           reception_location?: string | null
           reception_time?: string | null

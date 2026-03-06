@@ -35,6 +35,10 @@ interface CheckoutModalProps {
   onClose: () => void;
   weddingId: string;
   mercadoPagoPublicKey?: string | null;
+  paymentCreditCard?: boolean;
+  paymentPix?: boolean;
+  paymentBoleto?: boolean;
+  maxInstallments?: number;
 }
 
 type CheckoutStep = "cart" | "info" | "payment" | "success" | "pix" | "boleto";
@@ -93,6 +97,10 @@ const CheckoutModal = ({
   onClose,
   weddingId,
   mercadoPagoPublicKey,
+  paymentCreditCard = true,
+  paymentPix = true,
+  paymentBoleto = true,
+  maxInstallments = 12,
 }: CheckoutModalProps) => {
   const { config } = useWedding();
   const {
@@ -709,9 +717,10 @@ const CheckoutModal = ({
                       }}
                       customization={{
                         paymentMethods: {
-                          creditCard: "all",
-                          ticket: "all",
-                          bankTransfer: "all",
+                          creditCard: paymentCreditCard ? "all" : undefined,
+                          ticket: paymentBoleto ? "all" : undefined,
+                          bankTransfer: paymentPix ? "all" : undefined,
+                          maxInstallments: paymentCreditCard ? maxInstallments : undefined,
                         },
                         visual: {
                           style: {
@@ -927,18 +936,24 @@ const CheckoutModal = ({
 
             {step === "payment" && (
               <div className="flex items-center justify-center gap-4 mt-4 pt-4 border-t border-border">
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <QrCode className="w-4 h-4" />
-                  <span>Pix</span>
-                </div>
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <CreditCard className="w-4 h-4" />
-                  <span>Cartão</span>
-                </div>
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <FileText className="w-4 h-4" />
-                  <span>Boleto</span>
-                </div>
+                {paymentPix && (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <QrCode className="w-4 h-4" />
+                    <span>Pix</span>
+                  </div>
+                )}
+                {paymentCreditCard && (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <CreditCard className="w-4 h-4" />
+                    <span>Cartão</span>
+                  </div>
+                )}
+                {paymentBoleto && (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <FileText className="w-4 h-4" />
+                    <span>Boleto</span>
+                  </div>
+                )}
               </div>
             )}
           </div>

@@ -19,14 +19,26 @@ interface PublicLandingProps {
   config?: WeddingConfig;
   weddingId?: string;
   mercadoPagoPublicKey?: string | null;
+  paymentCreditCard?: boolean;
+  paymentPix?: boolean;
+  paymentBoleto?: boolean;
+  maxInstallments?: number;
 }
 
 const PublicLandingContent = ({ 
   weddingId,
-  mercadoPagoPublicKey 
+  mercadoPagoPublicKey,
+  paymentCreditCard,
+  paymentPix,
+  paymentBoleto,
+  maxInstallments,
 }: {
   weddingId?: string;
   mercadoPagoPublicKey?: string | null;
+  paymentCreditCard?: boolean;
+  paymentPix?: boolean;
+  paymentBoleto?: boolean;
+  maxInstallments?: number;
 }) => {
   const { config } = useWedding();
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
@@ -73,6 +85,10 @@ const PublicLandingContent = ({
             onClose={() => setIsCheckoutOpen(false)}
             weddingId={weddingId || ""}
             mercadoPagoPublicKey={mercadoPagoPublicKey}
+            paymentCreditCard={paymentCreditCard}
+            paymentPix={paymentPix}
+            paymentBoleto={paymentBoleto}
+            maxInstallments={maxInstallments}
           />
         </>
       )}
@@ -84,13 +100,21 @@ const PublicLanding = ({
   isPreview = false, 
   config: propConfig,
   weddingId,
-  mercadoPagoPublicKey 
+  mercadoPagoPublicKey,
+  paymentCreditCard,
+  paymentPix,
+  paymentBoleto,
+  maxInstallments,
 }: PublicLandingProps) => {
   return (
     <CartProvider>
       <PublicLandingContent 
         weddingId={weddingId}
         mercadoPagoPublicKey={mercadoPagoPublicKey}
+        paymentCreditCard={paymentCreditCard}
+        paymentPix={paymentPix}
+        paymentBoleto={paymentBoleto}
+        maxInstallments={maxInstallments}
       />
     </CartProvider>
   );

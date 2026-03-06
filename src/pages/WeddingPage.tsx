@@ -40,6 +40,10 @@ interface WeddingData {
   story_photo_3: string | null;
   partner1_name: string;
   partner2_name: string;
+  payment_credit_card?: boolean;
+  payment_pix?: boolean;
+  payment_boleto?: boolean;
+  max_installments?: number;
 }
 
 interface GiftData {
@@ -121,6 +125,10 @@ const WeddingContent = ({
       <PublicLanding 
         weddingId={weddingId}
         mercadoPagoPublicKey={mercadoPagoPublicKey}
+        paymentCreditCard={weddingData.payment_credit_card ?? true}
+        paymentPix={weddingData.payment_pix ?? true}
+        paymentBoleto={weddingData.payment_boleto ?? true}
+        maxInstallments={weddingData.max_installments ?? 12}
       />
     </WeddingProvider>
   );
