@@ -100,13 +100,21 @@ const PublicLanding = ({
   isPreview = false, 
   config: propConfig,
   weddingId,
-  mercadoPagoPublicKey 
+  mercadoPagoPublicKey,
+  paymentCreditCard,
+  paymentPix,
+  paymentBoleto,
+  maxInstallments,
 }: PublicLandingProps) => {
   return (
     <CartProvider>
       <PublicLandingContent 
         weddingId={weddingId}
         mercadoPagoPublicKey={mercadoPagoPublicKey}
+        paymentCreditCard={paymentCreditCard}
+        paymentPix={paymentPix}
+        paymentBoleto={paymentBoleto}
+        maxInstallments={maxInstallments}
       />
     </CartProvider>
   );
