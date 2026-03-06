@@ -35,6 +35,10 @@ interface CheckoutModalProps {
   onClose: () => void;
   weddingId: string;
   mercadoPagoPublicKey?: string | null;
+  paymentCreditCard?: boolean;
+  paymentPix?: boolean;
+  paymentBoleto?: boolean;
+  maxInstallments?: number;
 }
 
 type CheckoutStep = "cart" | "info" | "payment" | "success" | "pix" | "boleto";
