@@ -40,6 +40,10 @@ interface WeddingData {
   story_photo_3: string | null;
   partner1_name: string;
   partner2_name: string;
+  payment_credit_card?: boolean;
+  payment_pix?: boolean;
+  payment_boleto?: boolean;
+  max_installments?: number;
 }
 
 interface GiftData {
