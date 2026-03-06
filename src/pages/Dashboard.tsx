@@ -951,6 +951,87 @@ const Dashboard = () => {
               ⚠️ As credenciais serão validadas antes de salvar
             </p>
           </div>
+
+          {/* Payment Method Toggles */}
+          <div className="mt-6 border-t border-border pt-6">
+            <h3 className="font-medium text-foreground mb-4 flex items-center gap-2">
+              <CreditCard className="w-4 h-4 text-gold" />
+              Métodos de Pagamento
+            </h3>
+            <p className="text-sm text-muted-foreground mb-4">
+              Escolha quais métodos de pagamento estarão disponíveis para os convidados.
+            </p>
+            
+            <div className="grid sm:grid-cols-3 gap-4 mb-6">
+              <div className="flex items-center justify-between p-4 rounded-lg bg-muted/50 border border-border">
+                <div className="flex items-center gap-3">
+                  <CreditCard className="w-4 h-4 text-gold" />
+                  <span className="text-sm font-medium text-foreground">Cartão de Crédito</span>
+                </div>
+                <Switch
+                  checked={paymentCreditCard}
+                  onCheckedChange={setPaymentCreditCard}
+                />
+              </div>
+              <div className="flex items-center justify-between p-4 rounded-lg bg-muted/50 border border-border">
+                <div className="flex items-center gap-3">
+                  <QrCode className="w-4 h-4 text-gold" />
+                  <span className="text-sm font-medium text-foreground">Pix</span>
+                </div>
+                <Switch
+                  checked={paymentPix}
+                  onCheckedChange={setPaymentPix}
+                />
+              </div>
+              <div className="flex items-center justify-between p-4 rounded-lg bg-muted/50 border border-border">
+                <div className="flex items-center gap-3">
+                  <FileText className="w-4 h-4 text-gold" />
+                  <span className="text-sm font-medium text-foreground">Boleto</span>
+                </div>
+                <Switch
+                  checked={paymentBoleto}
+                  onCheckedChange={setPaymentBoleto}
+                />
+              </div>
+            </div>
+
+            {/* Installment Configuration */}
+            {paymentCreditCard && (
+              <div className="p-4 rounded-lg bg-muted/50 border border-border">
+                <Label htmlFor="maxInstallments" className="flex items-center gap-2 mb-2">
+                  <CreditCard className="w-4 h-4 text-gold" />
+                  Máximo de Parcelas
+                </Label>
+                <Select
+                  value={maxInstallments.toString()}
+                  onValueChange={(val) => setMaxInstallments(parseInt(val))}
+                >
+                  <SelectTrigger className="w-full sm:w-48 bg-background">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {[1, 2, 3, 4, 5, 6, 9, 10, 12].map((n) => (
+                      <SelectItem key={n} value={n.toString()}>
+                        {n === 1 ? "À vista (sem parcelamento)" : `Até ${n}x`}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground mt-2">
+                  Define o número máximo de parcelas disponíveis no cartão de crédito.
+                </p>
+              </div>
+            )}
+
+            {!paymentCreditCard && !paymentPix && !paymentBoleto && (
+              <Alert className="border-destructive bg-destructive/10">
+                <AlertDescription className="flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 text-destructive" />
+                  <span className="text-destructive">Pelo menos um método de pagamento deve estar ativado.</span>
+                </AlertDescription>
+              </Alert>
+            )}
+          </div>
         </motion.section>
 
         {/* Section 7: Wedding Info */}
