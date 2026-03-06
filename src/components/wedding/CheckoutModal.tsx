@@ -717,9 +717,10 @@ const CheckoutModal = ({
                       }}
                       customization={{
                         paymentMethods: {
-                          creditCard: "all",
-                          ticket: "all",
-                          bankTransfer: "all",
+                          creditCard: paymentCreditCard ? "all" : undefined,
+                          ticket: paymentBoleto ? "all" : undefined,
+                          bankTransfer: paymentPix ? "all" : undefined,
+                          maxInstallments: paymentCreditCard ? maxInstallments : undefined,
                         },
                         visual: {
                           style: {
