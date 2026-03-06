@@ -97,6 +97,10 @@ const CheckoutModal = ({
   onClose,
   weddingId,
   mercadoPagoPublicKey,
+  paymentCreditCard = true,
+  paymentPix = true,
+  paymentBoleto = true,
+  maxInstallments = 12,
 }: CheckoutModalProps) => {
   const { config } = useWedding();
   const {
