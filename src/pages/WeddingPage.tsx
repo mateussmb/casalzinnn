@@ -125,6 +125,10 @@ const WeddingContent = ({
       <PublicLanding 
         weddingId={weddingId}
         mercadoPagoPublicKey={mercadoPagoPublicKey}
+        paymentCreditCard={weddingData.payment_credit_card ?? true}
+        paymentPix={weddingData.payment_pix ?? true}
+        paymentBoleto={weddingData.payment_boleto ?? true}
+        maxInstallments={weddingData.max_installments ?? 12}
       />
     </WeddingProvider>
   );
