@@ -19,6 +19,10 @@ interface PublicLandingProps {
   config?: WeddingConfig;
   weddingId?: string;
   mercadoPagoPublicKey?: string | null;
+  paymentCreditCard?: boolean;
+  paymentPix?: boolean;
+  paymentBoleto?: boolean;
+  maxInstallments?: number;
 }
 
 const PublicLandingContent = ({ 
