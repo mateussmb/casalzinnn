@@ -85,6 +85,10 @@ const PublicLandingContent = ({
             onClose={() => setIsCheckoutOpen(false)}
             weddingId={weddingId || ""}
             mercadoPagoPublicKey={mercadoPagoPublicKey}
+            paymentCreditCard={paymentCreditCard}
+            paymentPix={paymentPix}
+            paymentBoleto={paymentBoleto}
+            maxInstallments={maxInstallments}
           />
         </>
       )}
