@@ -136,6 +136,10 @@ const Dashboard = () => {
         setWeddingSlug(wedding.slug);
         setMercadoPagoPublicKey(wedding.mercado_pago_public_key || "");
         setMercadoPagoAccessToken(wedding.mercado_pago_access_token || "");
+        setPaymentCreditCard((wedding as Record<string, unknown>).payment_credit_card as boolean ?? true);
+        setPaymentPix((wedding as Record<string, unknown>).payment_pix as boolean ?? true);
+        setPaymentBoleto((wedding as Record<string, unknown>).payment_boleto as boolean ?? true);
+        setMaxInstallments((wedding as Record<string, unknown>).max_installments as number ?? 12);
         setStoryPhoto1((wedding as Record<string, unknown>).story_photo_1 as string || "");
         setStoryPhoto2((wedding as Record<string, unknown>).story_photo_2 as string || "");
         setStoryPhoto3((wedding as Record<string, unknown>).story_photo_3 as string || "");
