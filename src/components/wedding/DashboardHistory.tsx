@@ -288,6 +288,7 @@ const DashboardHistory = () => {
               <SelectContent>
                 <SelectItem value="all">Todos</SelectItem>
                 <SelectItem value="paid">Pagos</SelectItem>
+                <SelectItem value="approved">Aprovados</SelectItem>
                 <SelectItem value="pending">Pendentes</SelectItem>
                 <SelectItem value="rejected">Recusados</SelectItem>
               </SelectContent>
