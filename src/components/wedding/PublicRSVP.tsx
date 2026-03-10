@@ -222,12 +222,13 @@ const PublicRSVP = ({ weddingId }: PublicRSVPProps) => {
             {formData.guests > 1 && (
               <div className="space-y-3">
                 <label className="block text-sm font-medium text-foreground">
-                  Nomes dos acompanhantes
+                  Nomes dos acompanhantes *
                 </label>
                 {formData.companionNames.map((name, index) => (
                   <input
                     key={index}
                     type="text"
+                    required
                     maxLength={200}
                     value={name}
                     onChange={(e) => handleCompanionNameChange(index, e.target.value)}
