@@ -400,6 +400,13 @@ const DashboardHistory = () => {
                           {rsvp.guest_email && (
                             <p className="text-xs text-muted-foreground">{rsvp.guest_email}</p>
                           )}
+                          {rsvp.companion_names && rsvp.companion_names.length > 0 && (
+                            <div className="mt-1">
+                              {rsvp.companion_names.map((name, i) => (
+                                <p key={i} className="text-xs text-muted-foreground">+ {name}</p>
+                              ))}
+                            </div>
+                          )}
                         </td>
                         <td className="p-3">
                           <Badge
