@@ -54,6 +54,7 @@ interface RsvpResponse {
   dietary_restrictions: string | null;
   message: string | null;
   created_at: string;
+  companion_names?: string[];
 }
 
 interface Message {
