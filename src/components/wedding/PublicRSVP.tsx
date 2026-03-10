@@ -290,7 +290,7 @@ const PublicRSVP = ({ weddingId }: PublicRSVPProps) => {
 
             <button
               type="submit"
-              disabled={!formData.name || !formData.attending || loading}
+              disabled={!formData.name || !formData.attending || loading || (formData.guests > 1 && formData.attending === "yes" && formData.companionNames.some(n => !n.trim()))}
               className="btn-wedding w-full disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? (
