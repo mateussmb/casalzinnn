@@ -1,0 +1,1 @@
+ALTER TABLE public.rsvp_responses ADD COLUMN IF NOT EXISTS companion_names text[] DEFAULT '{}';

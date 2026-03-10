@@ -214,7 +214,11 @@ const WeddingPage = () => {
               story_photo_3,
               partner1_name,
               partner2_name,
-              mercado_pago_public_key
+              mercado_pago_public_key,
+              payment_credit_card,
+              payment_pix,
+              payment_boleto,
+              max_installments
             `)
             .eq("slug", slug)
             .single();

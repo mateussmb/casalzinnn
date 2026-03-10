@@ -272,6 +272,7 @@ export type Database = {
       rsvp_responses: {
         Row: {
           attendance: string
+          companion_names: string[] | null
           created_at: string
           dietary_restrictions: string | null
           guest_email: string | null
@@ -283,6 +284,7 @@ export type Database = {
         }
         Insert: {
           attendance: string
+          companion_names?: string[] | null
           created_at?: string
           dietary_restrictions?: string | null
           guest_email?: string | null
@@ -294,6 +296,7 @@ export type Database = {
         }
         Update: {
           attendance?: string
+          companion_names?: string[] | null
           created_at?: string
           dietary_restrictions?: string | null
           guest_email?: string | null
