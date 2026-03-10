@@ -10,6 +10,7 @@ interface RSVPFormData {
   name: string;
   guests: number;
   attending: "yes" | "no" | "";
+  companionNames: string[];
 }
 
 interface PublicRSVPProps {
@@ -26,7 +27,27 @@ const PublicRSVP = ({ weddingId }: PublicRSVPProps) => {
     name: "",
     guests: 1,
     attending: "",
+    companionNames: [],
   });
+
+  const handleGuestsChange = (value: number) => {
+    const newCompanions = Array.from({ length: Math.max(0, value - 1) }, (_, i) =>
+      formData.companionNames[i] || ""
+    );
+    setFormData((prev) => ({
+      ...prev,
+      guests: value,
+      companionNames: newCompanions,
+    }));
+  };
+
+  const handleCompanionNameChange = (index: number, value: string) => {
+    setFormData((prev) => {
+      const updated = [...prev.companionNames];
+      updated[index] = value;
+      return { ...prev, companionNames: updated };
+    });
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -46,12 +67,17 @@ const PublicRSVP = ({ weddingId }: PublicRSVPProps) => {
     try {
       const sanitizedName = formData.name.trim().replace(/[<>]/g, '').substring(0, 200);
       const clampedGuests = Math.max(1, Math.min(20, formData.guests));
+      const sanitizedCompanions = formData.companionNames
+        .map(n => n.trim().replace(/[<>]/g, '').substring(0, 200))
+        .filter(Boolean);
+
       const { error } = await supabase.from("rsvp_responses").insert({
         wedding_id: weddingId,
         guest_name: sanitizedName,
         guests_count: clampedGuests,
         attendance: formData.attending === "yes" ? "confirmed" : "declined",
-      });
+        companion_names: sanitizedCompanions,
+      } as any);
 
       if (error) {
         console.error("RSVP error:", error);
@@ -72,10 +98,14 @@ const PublicRSVP = ({ weddingId }: PublicRSVPProps) => {
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
   ) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: name === "guests" ? parseInt(value) : value,
-    }));
+    if (name === "guests") {
+      handleGuestsChange(parseInt(value));
+    } else {
+      setFormData((prev) => ({
+        ...prev,
+        [name]: value,
+      }));
+    }
   };
 
   if (submitted) {
@@ -178,6 +208,27 @@ const PublicRSVP = ({ weddingId }: PublicRSVPProps) => {
                 ))}
               </select>
             </div>
+
+            {/* Companion name inputs */}
+            {formData.guests > 1 && (
+              <div className="space-y-3">
+                <label className="block text-sm font-medium text-foreground">
+                  Nomes dos acompanhantes
+                </label>
+                {formData.companionNames.map((name, index) => (
+                  <input
+                    key={index}
+                    type="text"
+                    maxLength={200}
+                    value={name}
+                    onChange={(e) => handleCompanionNameChange(index, e.target.value)}
+                    className="input-wedding"
+                    placeholder={`Nome do acompanhante ${index + 1}`}
+                    disabled={loading}
+                  />
+                ))}
+              </div>
+            )}
 
             <div>
               <label className="block text-sm font-medium text-foreground mb-3">

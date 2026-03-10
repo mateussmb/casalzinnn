@@ -54,6 +54,7 @@ interface RsvpResponse {
   dietary_restrictions: string | null;
   message: string | null;
   created_at: string;
+  companion_names?: string[];
 }
 
 interface Message {
@@ -288,6 +289,7 @@ const DashboardHistory = () => {
               <SelectContent>
                 <SelectItem value="all">Todos</SelectItem>
                 <SelectItem value="paid">Pagos</SelectItem>
+                <SelectItem value="approved">Aprovados</SelectItem>
                 <SelectItem value="pending">Pendentes</SelectItem>
                 <SelectItem value="rejected">Recusados</SelectItem>
               </SelectContent>
@@ -397,6 +399,13 @@ const DashboardHistory = () => {
                           <p className="font-medium text-foreground">{rsvp.guest_name}</p>
                           {rsvp.guest_email && (
                             <p className="text-xs text-muted-foreground">{rsvp.guest_email}</p>
+                          )}
+                          {rsvp.companion_names && rsvp.companion_names.length > 0 && (
+                            <div className="mt-1">
+                              {rsvp.companion_names.map((name, i) => (
+                                <p key={i} className="text-xs text-muted-foreground">+ {name}</p>
+                              ))}
+                            </div>
                           )}
                         </td>
                         <td className="p-3">
