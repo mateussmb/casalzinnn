@@ -62,6 +62,15 @@ const PublicRSVP = ({ weddingId }: PublicRSVPProps) => {
       return;
     }
 
+    // Validate companion names are required when guests > 1
+    if (formData.guests > 1 && formData.attending === "yes") {
+      const emptyCompanions = formData.companionNames.some(n => !n.trim());
+      if (emptyCompanions) {
+        toast.error("Por favor, preencha o nome de todos os acompanhantes.");
+        return;
+      }
+    }
+
     setLoading(true);
     
     try {
@@ -213,12 +222,13 @@ const PublicRSVP = ({ weddingId }: PublicRSVPProps) => {
             {formData.guests > 1 && (
               <div className="space-y-3">
                 <label className="block text-sm font-medium text-foreground">
-                  Nomes dos acompanhantes
+                  Nomes dos acompanhantes *
                 </label>
                 {formData.companionNames.map((name, index) => (
                   <input
                     key={index}
                     type="text"
+                    required
                     maxLength={200}
                     value={name}
                     onChange={(e) => handleCompanionNameChange(index, e.target.value)}
@@ -280,7 +290,7 @@ const PublicRSVP = ({ weddingId }: PublicRSVPProps) => {
 
             <button
               type="submit"
-              disabled={!formData.name || !formData.attending || loading}
+              disabled={!formData.name || !formData.attending || loading || (formData.guests > 1 && formData.attending === "yes" && formData.companionNames.some(n => !n.trim()))}
               className="btn-wedding w-full disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? (

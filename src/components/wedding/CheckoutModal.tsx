@@ -18,6 +18,7 @@ import {
   ExternalLink,
   AlertCircle,
   Users,
+  Phone,
 } from "lucide-react";
 import { initMercadoPago, Payment } from "@mercadopago/sdk-react";
 import { useCart } from "@/contexts/CartContext";
@@ -49,7 +50,6 @@ interface PixData {
   ticket_url?: string;
 }
 
-// Translate Mercado Pago error codes to user-friendly Portuguese messages
 const translatePaymentError = (errorCode: string | undefined, message?: string): string => {
   if (!errorCode) return message || "Erro desconhecido. Tente novamente.";
   
@@ -119,6 +119,7 @@ const CheckoutModal = ({
   const [step, setStep] = useState<CheckoutStep>("cart");
   const [guestName, setGuestName] = useState("");
   const [guestEmail, setGuestEmail] = useState("");
+  const [guestPhone, setGuestPhone] = useState("");
   const [loading, setLoading] = useState(false);
   const [orderId, setOrderId] = useState<string | null>(null);
   const [mpInitialized, setMpInitialized] = useState(false);
@@ -129,8 +130,16 @@ const CheckoutModal = ({
   // RSVP confirmation in checkout
   const [confirmAttendance, setConfirmAttendance] = useState(false);
   const [attendanceGuests, setAttendanceGuests] = useState(1);
+  const [companionNames, setCompanionNames] = useState<string[]>([]);
 
-  // Initialize Mercado Pago SDK
+  // Address fields for boleto
+  const [payerZipCode, setPayerZipCode] = useState("");
+  const [payerStreet, setPayerStreet] = useState("");
+  const [payerStreetNumber, setPayerStreetNumber] = useState("");
+  const [payerNeighborhood, setPayerNeighborhood] = useState("");
+  const [payerCity, setPayerCity] = useState("");
+  const [payerState, setPayerState] = useState("");
+
   useEffect(() => {
     if (mercadoPagoPublicKey && !mpInitialized) {
       try {
@@ -142,16 +151,32 @@ const CheckoutModal = ({
     }
   }, [mercadoPagoPublicKey, mpInitialized]);
 
+  const handleAttendanceGuestsChange = (value: number) => {
+    setAttendanceGuests(value);
+    setCompanionNames(prev => {
+      const newNames = Array.from({ length: Math.max(0, value - 1) }, (_, i) => prev[i] || "");
+      return newNames;
+    });
+  };
+
   const handleClose = () => {
     if (step !== "pix" && step !== "boleto") {
       setStep("cart");
       setGuestName("");
       setGuestEmail("");
+      setGuestPhone("");
       setOrderId(null);
       setPixData(null);
       setBoletoData(null);
       setConfirmAttendance(false);
       setAttendanceGuests(1);
+      setCompanionNames([]);
+      setPayerZipCode("");
+      setPayerStreet("");
+      setPayerStreetNumber("");
+      setPayerNeighborhood("");
+      setPayerCity("");
+      setPayerState("");
     }
     onClose();
   };
@@ -164,10 +189,37 @@ const CheckoutModal = ({
     setStep("info");
   };
 
+  const formatPhone = (value: string) => {
+    const digits = value.replace(/\D/g, "").substring(0, 11);
+    if (digits.length <= 2) return digits;
+    if (digits.length <= 7) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+  };
+
+  const formatCep = (value: string) => {
+    const digits = value.replace(/\D/g, "").substring(0, 8);
+    if (digits.length <= 5) return digits;
+    return `${digits.slice(0, 5)}-${digits.slice(5)}`;
+  };
+
   const handleProceedToPayment = async () => {
     if (!guestName.trim()) {
       toast.error("Por favor, informe seu nome");
       return;
+    }
+
+    if (!guestPhone.trim() || guestPhone.replace(/\D/g, "").length < 10) {
+      toast.error("Por favor, informe um telefone válido");
+      return;
+    }
+
+    // Validate companion names if attendance confirmed with guests > 1
+    if (confirmAttendance && attendanceGuests > 1) {
+      const emptyCompanions = companionNames.some(n => !n.trim());
+      if (emptyCompanions) {
+        toast.error("Por favor, preencha o nome de todos os acompanhantes");
+        return;
+      }
     }
 
     if (!weddingId) {
@@ -183,26 +235,27 @@ const CheckoutModal = ({
     setLoading(true);
 
     try {
-      // Save RSVP if confirmed
       if (confirmAttendance && weddingId) {
         try {
           const sanitizedName = guestName.trim().replace(/[<>]/g, '').substring(0, 200);
           const sanitizedEmail = guestEmail.trim().replace(/[<>]/g, '').substring(0, 255) || null;
           const clampedGuests = Math.max(1, Math.min(20, attendanceGuests));
+          const sanitizedCompanions = companionNames
+            .map(n => n.trim().replace(/[<>]/g, '').substring(0, 200))
+            .filter(Boolean);
           await supabase.from("rsvp_responses").insert({
             wedding_id: weddingId,
             guest_name: sanitizedName,
             guests_count: clampedGuests,
             attendance: "confirmed",
             guest_email: sanitizedEmail,
-          });
+            companion_names: sanitizedCompanions,
+          } as any);
         } catch (rsvpErr) {
           console.error("RSVP save error:", rsvpErr);
-          // Don't block payment for RSVP error
         }
       }
 
-      // Create order in database first
       const paymentItems = items.map((item) => ({
         id: item.gift.id,
         name: item.gift.name,
@@ -219,7 +272,6 @@ const CheckoutModal = ({
         });
       }
 
-      // Create order via edge function
       const { data, error } = await supabase.functions.invoke("create-payment", {
         body: {
           weddingId,
@@ -264,34 +316,26 @@ const CheckoutModal = ({
       return;
     }
 
-    if (loading) return; // Prevent double submit
+    if (loading) return;
     setLoading(true);
 
     try {
-      // The Payment Brick returns: { selectedPaymentMethod, formData: { token, payment_method_id, ... } }
-      const selectedMethod = formData.selectedPaymentMethod; // "credit_card", "bank_transfer", "ticket"
+      const selectedMethod = formData.selectedPaymentMethod;
       const paymentFormData = formData.formData || formData;
 
-      // For credit card, use the actual card brand (visa, mastercard, etc.) from formData
-      // For bank_transfer (Pix), keep "bank_transfer" — edge function maps it to "pix"
-      // For ticket (Boleto), use the actual payment_method_id from formData (e.g. "bolbradesco")
       const paymentMethod = paymentFormData?.payment_method_id || selectedMethod || formData.payment_method_id;
 
       console.log('Payment submission:', { selectedMethod, paymentMethod, formData: paymentFormData });
 
-      // Extract payer identification safely
       const payer = paymentFormData?.payer || {};
       const identification = payer?.identification || {};
 
-      // Split name into first and last
       const nameParts = guestName.trim().split(' ').filter(Boolean);
       const firstName = nameParts[0] || 'Convidado';
       const lastName = nameParts.slice(1).join(' ') || 'Anônimo';
 
-      // Use the email from step 2 (guestEmail) consistently
       const payerEmail = guestEmail.trim() || `guest-${Date.now()}@wedding.local`;
 
-      // Process payment via edge function
       const { data, error } = await supabase.functions.invoke("process-payment", {
         body: {
           weddingId,
@@ -307,6 +351,13 @@ const CheckoutModal = ({
           identificationType: identification?.type || 'CPF',
           identificationNumber: identification?.number || '',
           transactionAmount: getTotalPrice(),
+          // Address for boleto
+          payerZipCode: payerZipCode.replace(/\D/g, ''),
+          payerStreet,
+          payerStreetNumber,
+          payerNeighborhood,
+          payerCity,
+          payerState,
         },
       });
 
@@ -323,14 +374,12 @@ const CheckoutModal = ({
         throw new Error(errorMessage);
       }
 
-      // Check for error in response data
       if (data?.error) {
         const errorDetail = data.details || data.error;
         const errorMessage = data.message || data.error;
         throw new Error(translatePaymentError(errorDetail, errorMessage));
       }
 
-      // Handle response based on payment type
       if (data.status === "approved") {
         clearCart();
         setStep("success");
@@ -379,6 +428,7 @@ const CheckoutModal = ({
     setStep("cart");
     setGuestName("");
     setGuestEmail("");
+    setGuestPhone("");
     setOrderId(null);
     setPixData(null);
     onClose();
@@ -398,24 +448,24 @@ const CheckoutModal = ({
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 bg-foreground/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+        className="fixed inset-0 bg-foreground/60 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center sm:p-4"
         onClick={step !== "payment" ? handleClose : undefined}
       >
         <motion.div
-          initial={{ opacity: 0, scale: 0.95, y: 20 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.95, y: 20 }}
-          className="bg-card rounded-2xl shadow-elevated max-w-lg w-full max-h-[90vh] overflow-hidden flex flex-col"
+          initial={{ opacity: 0, y: 100 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: 100 }}
+          className="bg-card rounded-t-2xl sm:rounded-2xl shadow-elevated w-full sm:max-w-lg max-h-[95vh] sm:max-h-[90vh] overflow-hidden flex flex-col"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
-          <div className="flex items-center justify-between p-6 border-b border-border">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-gold/10 rounded-full">
-                <ShoppingBag className="w-5 h-5 text-gold" />
+          <div className="flex items-center justify-between p-4 sm:p-6 border-b border-border">
+            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+              <div className="p-1.5 sm:p-2 bg-gold/10 rounded-full flex-shrink-0">
+                <ShoppingBag className="w-4 h-4 sm:w-5 sm:h-5 text-gold" />
               </div>
-              <div>
-                <h2 className="font-serif text-xl text-foreground">
+              <div className="min-w-0">
+                <h2 className="font-serif text-lg sm:text-xl text-foreground truncate">
                   {step === "cart" && "Carrinho de Presentes"}
                   {step === "info" && "Suas Informações"}
                   {step === "payment" && "Pagamento"}
@@ -423,14 +473,14 @@ const CheckoutModal = ({
                   {step === "pix" && "Pague com Pix"}
                   {step === "boleto" && "Boleto Gerado"}
                 </h2>
-                <p className="text-sm text-muted-foreground">
+                <p className="text-xs sm:text-sm text-muted-foreground truncate">
                   Presente para {config.coupleName}
                 </p>
               </div>
             </div>
             <button
               onClick={handleClose}
-              className="p-2 hover:bg-secondary rounded-full transition-colors"
+              className="p-2 hover:bg-secondary rounded-full transition-colors flex-shrink-0"
             >
               <X className="w-5 h-5 text-muted-foreground" />
             </button>
@@ -438,11 +488,11 @@ const CheckoutModal = ({
 
           {/* Steps indicator */}
           {!["success", "pix", "boleto"].includes(step) && (
-            <div className="flex items-center justify-center gap-2 py-4 border-b border-border">
+            <div className="flex items-center justify-center gap-2 py-3 sm:py-4 border-b border-border">
               {["cart", "info", "payment"].map((s, i) => (
                 <div key={s} className="flex items-center">
                   <div
-                    className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium transition-colors ${
+                    className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-xs sm:text-sm font-medium transition-colors ${
                       step === s
                         ? "bg-gold text-white"
                         : i < ["cart", "info", "payment"].indexOf(step)
@@ -451,14 +501,14 @@ const CheckoutModal = ({
                     }`}
                   >
                     {i < ["cart", "info", "payment"].indexOf(step) ? (
-                      <Check className="w-4 h-4" />
+                      <Check className="w-3 h-3 sm:w-4 sm:h-4" />
                     ) : (
                       i + 1
                     )}
                   </div>
                   {i < 2 && (
                     <div
-                      className={`w-12 h-0.5 mx-1 ${
+                      className={`w-8 sm:w-12 h-0.5 mx-1 ${
                         i < ["cart", "info", "payment"].indexOf(step)
                           ? "bg-green-500"
                           : "bg-secondary"
@@ -471,9 +521,9 @@ const CheckoutModal = ({
           )}
 
           {/* Content */}
-          <div className="p-6 overflow-y-auto flex-1 min-h-0">
+          <div className="p-4 sm:p-6 overflow-y-auto flex-1 min-h-0">
             {step === "cart" && (
-              <div className="space-y-4">
+              <div className="space-y-3 sm:space-y-4">
                 {items.length === 0 ? (
                   <div className="text-center py-8">
                     <Gift className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
@@ -489,9 +539,9 @@ const CheckoutModal = ({
                     {items.map((item) => (
                       <div
                         key={item.gift.id}
-                        className="flex gap-4 p-4 bg-secondary/50 rounded-lg"
+                        className="flex gap-3 sm:gap-4 p-3 sm:p-4 bg-secondary/50 rounded-lg"
                       >
-                        <div className="w-16 h-16 rounded-lg overflow-hidden bg-muted flex-shrink-0">
+                        <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-lg overflow-hidden bg-muted flex-shrink-0">
                           {item.gift.image ? (
                             <img
                               src={item.gift.image}
@@ -500,12 +550,12 @@ const CheckoutModal = ({
                             />
                           ) : (
                             <div className="w-full h-full flex items-center justify-center">
-                              <Gift className="w-6 h-6 text-muted-foreground" />
+                              <Gift className="w-5 h-5 sm:w-6 sm:h-6 text-muted-foreground" />
                             </div>
                           )}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <h4 className="font-medium text-foreground truncate">
+                          <h4 className="font-medium text-foreground text-sm sm:text-base truncate">
                             {item.gift.name}
                           </h4>
                           <p className="text-sm text-gold font-medium">
@@ -520,7 +570,7 @@ const CheckoutModal = ({
                             >
                               <Minus className="w-4 h-4" />
                             </button>
-                            <span className="w-8 text-center font-medium">
+                            <span className="w-8 text-center font-medium text-sm">
                               {item.quantity}
                             </span>
                             <button
@@ -543,7 +593,7 @@ const CheckoutModal = ({
                     ))}
 
                     {/* Envelope option */}
-                    <div className="p-4 bg-gold/5 border border-gold/20 rounded-lg">
+                    <div className="p-3 sm:p-4 bg-gold/5 border border-gold/20 rounded-lg">
                       <div className="flex items-start gap-3">
                         <Checkbox
                           id="envelope"
@@ -556,12 +606,12 @@ const CheckoutModal = ({
                         <div className="flex-1">
                           <label
                             htmlFor="envelope"
-                            className="font-medium text-foreground cursor-pointer flex items-center gap-2"
+                            className="font-medium text-foreground cursor-pointer flex items-center gap-2 text-sm sm:text-base"
                           >
                             <Mail className="w-4 h-4 text-gold" />
                             Envelope Personalizado
                           </label>
-                          <p className="text-sm text-muted-foreground mt-1">
+                          <p className="text-xs sm:text-sm text-muted-foreground mt-1">
                             Envie seu presente com um envelope especial
                             personalizado para {config.coupleName}
                           </p>
@@ -573,10 +623,10 @@ const CheckoutModal = ({
                     </div>
 
                     {/* Gift message */}
-                    <div className="p-4 bg-secondary/50 border border-border rounded-lg">
+                    <div className="p-3 sm:p-4 bg-secondary/50 border border-border rounded-lg">
                       <div className="flex items-center gap-2 mb-3">
                         <MessageSquare className="w-4 h-4 text-gold" />
-                        <Label className="font-medium text-foreground cursor-pointer">
+                        <Label className="font-medium text-foreground cursor-pointer text-sm sm:text-base">
                           Mensagem para o casal (opcional)
                         </Label>
                       </div>
@@ -584,22 +634,22 @@ const CheckoutModal = ({
                         value={giftMessage}
                         onChange={(e) => setGiftMessage(e.target.value)}
                         placeholder="Escreva uma mensagem carinhosa..."
-                        className="mb-3 bg-card"
+                        className="mb-3 bg-card text-sm"
                         rows={3}
                         maxLength={300}
                       />
-                      <div className="flex flex-wrap gap-2">
+                      <div className="flex flex-wrap gap-1.5 sm:gap-2">
                         {[
                           "Felicidades ao casal! 💕",
                           "Que Deus abençoe essa união! 🙏",
-                          "Muita felicidade nessa nova jornada! 🎉",
-                          "Com muito carinho e amor! ❤️",
+                          "Muita felicidade! 🎉",
+                          "Com muito carinho! ❤️",
                         ].map((msg) => (
                           <button
                             key={msg}
                             type="button"
                             onClick={() => setGiftMessage(msg)}
-                            className="text-xs px-3 py-1.5 rounded-full bg-card border border-border hover:border-gold hover:text-gold transition-colors"
+                            className="text-xs px-2.5 sm:px-3 py-1.5 rounded-full bg-card border border-border hover:border-gold hover:text-gold transition-colors"
                           >
                             {msg}
                           </button>
@@ -639,12 +689,27 @@ const CheckoutModal = ({
                     className="mt-1.5"
                   />
                   <p className="text-xs text-muted-foreground mt-1">
-                    Usado para enviar o comprovante do presente e no pagamento
+                    Usado para enviar o comprovante e no pagamento
                   </p>
+                </div>
+                <div>
+                  <Label htmlFor="guestPhone" className="flex items-center gap-1.5">
+                    <Phone className="w-3.5 h-3.5" />
+                    Telefone Celular *
+                  </Label>
+                  <Input
+                    id="guestPhone"
+                    type="tel"
+                    value={guestPhone}
+                    onChange={(e) => setGuestPhone(formatPhone(e.target.value))}
+                    placeholder="(11) 99999-9999"
+                    className="mt-1.5"
+                    maxLength={15}
+                  />
                 </div>
 
                 {/* RSVP Confirmation */}
-                <div className="p-4 bg-gold/5 border border-gold/20 rounded-lg">
+                <div className="p-3 sm:p-4 bg-gold/5 border border-gold/20 rounded-lg">
                   <div className="flex items-start gap-3">
                     <Checkbox
                       id="confirmAttendance"
@@ -657,36 +722,136 @@ const CheckoutModal = ({
                     <div className="flex-1">
                       <label
                         htmlFor="confirmAttendance"
-                        className="font-medium text-foreground cursor-pointer flex items-center gap-2"
+                        className="font-medium text-foreground cursor-pointer flex items-center gap-2 text-sm sm:text-base"
                       >
                         <Users className="w-4 h-4 text-gold" />
                         Confirmar presença no casamento
                       </label>
-                      <p className="text-sm text-muted-foreground mt-1">
+                      <p className="text-xs sm:text-sm text-muted-foreground mt-1">
                         Aproveite para confirmar sua presença junto com o presente
                       </p>
                     </div>
                   </div>
                   {confirmAttendance && (
-                    <div className="mt-3 ml-7">
-                      <Label htmlFor="attendanceGuests" className="text-sm">
-                        Quantidade de pessoas (incluindo você)
-                      </Label>
-                      <select
-                        id="attendanceGuests"
-                        value={attendanceGuests}
-                        onChange={(e) => setAttendanceGuests(parseInt(e.target.value))}
-                        className="mt-1 w-full px-3 py-2 rounded-md border border-input bg-background text-sm"
-                      >
-                        {[1, 2, 3, 4, 5].map((num) => (
-                          <option key={num} value={num}>
-                            {num} {num === 1 ? "pessoa" : "pessoas"}
-                          </option>
-                        ))}
-                      </select>
+                    <div className="mt-3 ml-7 space-y-3">
+                      <div>
+                        <Label htmlFor="attendanceGuests" className="text-sm">
+                          Quantidade de pessoas (incluindo você)
+                        </Label>
+                        <select
+                          id="attendanceGuests"
+                          value={attendanceGuests}
+                          onChange={(e) => handleAttendanceGuestsChange(parseInt(e.target.value))}
+                          className="mt-1 w-full px-3 py-2 rounded-md border border-input bg-background text-sm"
+                        >
+                          {[1, 2, 3, 4, 5].map((num) => (
+                            <option key={num} value={num}>
+                              {num} {num === 1 ? "pessoa" : "pessoas"}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      {attendanceGuests > 1 && (
+                        <div className="space-y-2">
+                          <Label className="text-sm">Nomes dos acompanhantes *</Label>
+                          {companionNames.map((name, index) => (
+                            <Input
+                              key={index}
+                              value={name}
+                              onChange={(e) => {
+                                const updated = [...companionNames];
+                                updated[index] = e.target.value;
+                                setCompanionNames(updated);
+                              }}
+                              placeholder={`Nome do acompanhante ${index + 1}`}
+                              maxLength={200}
+                              className="text-sm"
+                            />
+                          ))}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
+
+                {/* Address section for boleto */}
+                {paymentBoleto && (
+                  <div className="p-3 sm:p-4 bg-secondary/50 border border-border rounded-lg">
+                    <p className="text-sm font-medium text-foreground mb-3 flex items-center gap-2">
+                      <FileText className="w-4 h-4 text-gold" />
+                      Endereço (necessário para boleto)
+                    </p>
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <Label className="text-xs">CEP</Label>
+                          <Input
+                            value={payerZipCode}
+                            onChange={(e) => setPayerZipCode(formatCep(e.target.value))}
+                            placeholder="00000-000"
+                            className="mt-1 text-sm"
+                            maxLength={9}
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-xs">Número</Label>
+                          <Input
+                            value={payerStreetNumber}
+                            onChange={(e) => setPayerStreetNumber(e.target.value)}
+                            placeholder="123"
+                            className="mt-1 text-sm"
+                            maxLength={10}
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <Label className="text-xs">Rua</Label>
+                        <Input
+                          value={payerStreet}
+                          onChange={(e) => setPayerStreet(e.target.value)}
+                          placeholder="Nome da rua"
+                          className="mt-1 text-sm"
+                          maxLength={200}
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs">Bairro</Label>
+                        <Input
+                          value={payerNeighborhood}
+                          onChange={(e) => setPayerNeighborhood(e.target.value)}
+                          placeholder="Bairro"
+                          className="mt-1 text-sm"
+                          maxLength={100}
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <Label className="text-xs">Cidade</Label>
+                          <Input
+                            value={payerCity}
+                            onChange={(e) => setPayerCity(e.target.value)}
+                            placeholder="Cidade"
+                            className="mt-1 text-sm"
+                            maxLength={100}
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-xs">Estado</Label>
+                          <select
+                            value={payerState}
+                            onChange={(e) => setPayerState(e.target.value)}
+                            className="mt-1 w-full px-3 py-2 rounded-md border border-input bg-background text-sm h-10"
+                          >
+                            <option value="">UF</option>
+                            {["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"].map(uf => (
+                              <option key={uf} value={uf}>{uf}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -717,11 +882,11 @@ const CheckoutModal = ({
                       }}
                       customization={{
                         paymentMethods: {
-                  creditCard: paymentCreditCard ? "all" : [],
-                  debitCard: paymentCreditCard ? "all" : [],
-                  ticket: paymentBoleto ? "all" : [],
-                  bankTransfer: paymentPix ? "all" : [],
-                  maxInstallments: paymentCreditCard ? maxInstallments : 1,
+                          creditCard: paymentCreditCard ? "all" : [],
+                          debitCard: [],
+                          ticket: paymentBoleto ? "all" : [],
+                          bankTransfer: paymentPix ? "all" : [],
+                          maxInstallments: paymentCreditCard ? maxInstallments : 1,
                         },
                         visual: {
                           style: {
@@ -738,14 +903,14 @@ const CheckoutModal = ({
             )}
 
             {step === "success" && (
-              <div className="space-y-4 text-center py-8">
+              <div className="space-y-4 text-center py-6 sm:py-8">
                 <div className="w-16 h-16 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mx-auto">
                   <Check className="w-8 h-8 text-green-600" />
                 </div>
-                <h3 className="font-serif text-2xl text-foreground">
+                <h3 className="font-serif text-xl sm:text-2xl text-foreground">
                   Obrigado pelo presente!
                 </h3>
-                <p className="text-muted-foreground">
+                <p className="text-muted-foreground text-sm sm:text-base">
                   Seu presente para {config.coupleName} foi registrado com sucesso.
                 </p>
                 {confirmAttendance && (
@@ -758,7 +923,7 @@ const CheckoutModal = ({
 
             {step === "pix" && pixData && (
               <div className="space-y-4 text-center">
-                <div className="p-4 bg-secondary/50 rounded-lg">
+                <div className="p-3 sm:p-4 bg-secondary/50 rounded-lg">
                   <QrCode className="w-8 h-8 text-gold mx-auto mb-2" />
                   <p className="text-sm text-muted-foreground mb-4">
                     Escaneie o QR Code ou copie o código Pix
@@ -768,7 +933,7 @@ const CheckoutModal = ({
                     <img
                       src={`data:image/png;base64,${pixData.qr_code_base64}`}
                       alt="QR Code Pix"
-                      className="w-48 h-48 mx-auto mb-4 rounded-lg"
+                      className="w-40 h-40 sm:w-48 sm:h-48 mx-auto mb-4 rounded-lg"
                     />
                   )}
 
@@ -808,7 +973,7 @@ const CheckoutModal = ({
 
             {step === "boleto" && boletoData && (
               <div className="space-y-4 text-center">
-                <div className="p-4 bg-secondary/50 rounded-lg">
+                <div className="p-3 sm:p-4 bg-secondary/50 rounded-lg">
                   <FileText className="w-8 h-8 text-gold mx-auto mb-2" />
                   <p className="text-sm text-muted-foreground mb-4">
                     Seu boleto foi gerado com sucesso!
@@ -840,8 +1005,8 @@ const CheckoutModal = ({
             )}
           </div>
 
-          {/* Footer with totals and actions */}
-          <div className="p-6 border-t border-border bg-secondary/30">
+          {/* Footer */}
+          <div className="p-4 sm:p-6 border-t border-border bg-secondary/30">
             {(step === "cart" || step === "info") && items.length > 0 && (
               <div className="space-y-2 mb-4">
                 <div className="flex justify-between text-sm">
@@ -856,7 +1021,7 @@ const CheckoutModal = ({
                     <span>R$ {envelopePrice.toFixed(2).replace(".", ",")}</span>
                   </div>
                 )}
-                <div className="flex justify-between font-medium text-lg pt-2 border-t border-border">
+                <div className="flex justify-between font-medium text-base sm:text-lg pt-2 border-t border-border">
                   <span>Total</span>
                   <span className="text-gold">
                     R$ {getTotalPrice().toFixed(2).replace(".", ",")}
@@ -865,7 +1030,7 @@ const CheckoutModal = ({
               </div>
             )}
 
-            <div className="flex gap-3">
+            <div className="flex gap-2 sm:gap-3">
               {step === "cart" && (
                 <Button
                   onClick={handleProceedToInfo}
@@ -936,22 +1101,22 @@ const CheckoutModal = ({
             </div>
 
             {step === "payment" && (
-              <div className="flex items-center justify-center gap-4 mt-4 pt-4 border-t border-border">
+              <div className="flex items-center justify-center gap-3 sm:gap-4 mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-border">
                 {paymentPix && (
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <QrCode className="w-4 h-4" />
+                  <div className="flex items-center gap-1.5 text-xs sm:text-sm text-muted-foreground">
+                    <QrCode className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                     <span>Pix</span>
                   </div>
                 )}
                 {paymentCreditCard && (
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <CreditCard className="w-4 h-4" />
+                  <div className="flex items-center gap-1.5 text-xs sm:text-sm text-muted-foreground">
+                    <CreditCard className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                     <span>Cartão</span>
                   </div>
                 )}
                 {paymentBoleto && (
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <FileText className="w-4 h-4" />
+                  <div className="flex items-center gap-1.5 text-xs sm:text-sm text-muted-foreground">
+                    <FileText className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                     <span>Boleto</span>
                   </div>
                 )}
