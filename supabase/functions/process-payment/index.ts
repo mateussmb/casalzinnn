@@ -7,7 +7,6 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 };
 
-// Input validation schema
 const PaymentRequestSchema = z.object({
   weddingId: z.string().uuid(),
   orderId: z.string().uuid(),
@@ -20,29 +19,28 @@ const PaymentRequestSchema = z.object({
   identificationType: z.string().max(20).optional(),
   identificationNumber: z.string().max(30).optional(),
   transactionAmount: z.number().positive().max(1000000),
-  // New required fields for PIX/Boleto
   payerFirstName: z.string().max(100).optional(),
   payerLastName: z.string().max(100).optional(),
+  // Address fields for boleto
+  payerZipCode: z.string().max(20).optional(),
+  payerStreet: z.string().max(200).optional(),
+  payerStreetNumber: z.string().max(10).optional(),
+  payerNeighborhood: z.string().max(100).optional(),
+  payerCity: z.string().max(100).optional(),
+  payerState: z.string().max(5).optional(),
 });
 
-// Sanitize string for safe storage/display
 const sanitizeString = (str: string): string => {
-  return str
-    .replace(/[<>]/g, '')
-    .replace(/javascript:/gi, '')
-    .trim();
+  return str.replace(/[<>]/g, '').replace(/javascript:/gi, '').trim();
 };
 
 serve(async (req) => {
-  // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    // Parse and validate input
     const rawBody = await req.json();
-    
     const validationResult = PaymentRequestSchema.safeParse(rawBody);
     
     if (!validationResult.success) {
@@ -60,27 +58,18 @@ serve(async (req) => {
     }
 
     const { 
-      weddingId, 
-      orderId,
-      paymentMethodId, 
-      token,
-      issuerId,
-      installments,
-      payerEmail, 
-      payerName,
-      identificationType,
-      identificationNumber,
-      transactionAmount,
-      payerFirstName,
-      payerLastName,
+      weddingId, orderId, paymentMethodId, token, issuerId, installments,
+      payerEmail, payerName, identificationType, identificationNumber,
+      transactionAmount, payerFirstName, payerLastName,
+      payerZipCode, payerStreet, payerStreetNumber, payerNeighborhood,
+      payerCity, payerState,
     } = validationResult.data;
 
-    // Create Supabase client with service role
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Fetch order to verify it exists and get the correct amount
+    // Fetch order
     const { data: order, error: orderError } = await supabase
       .from('orders')
       .select('id, wedding_id, total_amount, status')
@@ -89,24 +78,20 @@ serve(async (req) => {
       .single();
 
     if (orderError || !order) {
-      console.error('Order fetch error:', orderError);
       return new Response(
         JSON.stringify({ error: 'Order not found' }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Verify transaction amount matches order total (prevent price manipulation)
     const serverAmount = Number(order.total_amount);
     if (Math.abs(serverAmount - transactionAmount) > 0.01) {
-      console.error('Amount mismatch:', { serverAmount, clientAmount: transactionAmount });
       return new Response(
         JSON.stringify({ error: 'Transaction amount mismatch' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Prevent double payment
     if (order.status === 'paid' || order.status === 'approved') {
       return new Response(
         JSON.stringify({ error: 'Order already paid' }),
@@ -114,43 +99,27 @@ serve(async (req) => {
       );
     }
 
-    // Fetch wedding to get Mercado Pago credentials
+    // Fetch wedding
     const { data: wedding, error: weddingError } = await supabase
       .from('weddings')
       .select('mercado_pago_access_token, couple_name')
       .eq('id', weddingId)
       .single();
 
-    if (weddingError || !wedding) {
-      console.error('Wedding fetch error:', weddingError);
-      return new Response(
-        JSON.stringify({ error: 'Wedding not found' }),
-        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    if (!wedding.mercado_pago_access_token) {
+    if (weddingError || !wedding || !wedding.mercado_pago_access_token) {
       return new Response(
         JSON.stringify({ error: 'Mercado Pago not configured for this wedding' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Sanitize user inputs
+    // Prepare names
     const sanitizedPayerName = sanitizeString(payerName);
     const nameParts = sanitizedPayerName.split(' ').filter(Boolean);
-    
-    // Use provided names or split from full name
-    const firstName = payerFirstName 
-      ? sanitizeString(payerFirstName) 
-      : (nameParts[0] || 'Convidado');
-    const lastName = payerLastName 
-      ? sanitizeString(payerLastName) 
-      : (nameParts.slice(1).join(' ') || 'Anônimo');
+    const firstName = payerFirstName ? sanitizeString(payerFirstName) : (nameParts[0] || 'Convidado');
+    const lastName = payerLastName ? sanitizeString(payerLastName) : (nameParts.slice(1).join(' ') || 'Anônimo');
 
-    // Map payment method for Mercado Pago API
-    // "bank_transfer" from the SDK should be mapped to "pix" for the API
-    // "ticket" is a generic type — if received, map to "bolbradesco" as default
+    // Map payment method
     let actualPaymentMethod = paymentMethodId;
     if (paymentMethodId === 'bank_transfer') {
       actualPaymentMethod = 'pix';
@@ -158,74 +127,66 @@ serve(async (req) => {
       actualPaymentMethod = 'bolbradesco';
     }
 
-    // Determine if this is a credit card payment (needs token)
     const isCreditCard = !!token && !['pix', 'bank_transfer', 'bolbradesco', 'ticket'].includes(paymentMethodId);
     const isBoleto = ['bolbradesco', 'ticket'].includes(paymentMethodId) || actualPaymentMethod === 'bolbradesco';
 
     console.log('Payment method mapping:', { original: paymentMethodId, mapped: actualPaymentMethod, isCreditCard, isBoleto });
 
-    // Build payment request for Mercado Pago API
+    // Build payer object
+    const payerObj: Record<string, unknown> = {
+      email: payerEmail,
+      first_name: firstName,
+      last_name: lastName,
+    };
+
+    // Add identification
+    const idType = identificationType || 'CPF';
+    const idNumber = identificationNumber ? identificationNumber.replace(/[^\d]/g, '') : '';
+    if (idNumber) {
+      payerObj.identification = { type: idType, number: idNumber };
+    }
+
+    // Add address for boleto (REQUIRED by Mercado Pago)
+    if (isBoleto && payerZipCode) {
+      payerObj.address = {
+        zip_code: payerZipCode.replace(/[^\d]/g, ''),
+        street_name: payerStreet || 'Não informado',
+        street_number: payerStreetNumber || 'S/N',
+        neighborhood: payerNeighborhood || 'Centro',
+        city: payerCity || 'São Paulo',
+        federal_unit: payerState || 'SP',
+      };
+    } else if (isBoleto) {
+      // Provide default address if none given (required by MP API)
+      payerObj.address = {
+        zip_code: '01001000',
+        street_name: 'Praça da Sé',
+        street_number: '1',
+        neighborhood: 'Sé',
+        city: 'São Paulo',
+        federal_unit: 'SP',
+      };
+    }
+
+    // Build payment data
     const paymentData: Record<string, unknown> = {
-      transaction_amount: serverAmount, // Use server-verified amount
+      transaction_amount: serverAmount,
       payment_method_id: actualPaymentMethod,
-      payer: {
-        email: payerEmail,
-        first_name: firstName,
-        last_name: lastName,
-      },
+      payer: payerObj,
       description: `Presente para ${sanitizeString(wedding.couple_name)}`,
       statement_descriptor: `Presente ${sanitizeString(wedding.couple_name)}`.substring(0, 22),
       external_reference: orderId,
     };
 
-    // Add token for credit card payments
-    if (token) {
-      paymentData.token = token;
-    }
+    if (token) paymentData.token = token;
+    if (issuerId) paymentData.issuer_id = issuerId;
+    if (installments) paymentData.installments = installments;
 
-    // Add issuer for credit card
-    if (issuerId) {
-      paymentData.issuer_id = issuerId;
-    }
+    console.log('Processing payment:', { orderId, method: actualPaymentMethod, amount: serverAmount });
 
-    // Add installments for credit card
-    if (installments) {
-      paymentData.installments = installments;
-    }
-
-    // Add identification - REQUIRED for PIX, Boleto, and recommended for credit cards
-    const idType = identificationType || 'CPF';
-    const idNumber = identificationNumber 
-      ? identificationNumber.replace(/[^\d]/g, '') 
-      : '';
-    
-    if (idNumber) {
-      (paymentData.payer as Record<string, unknown>).identification = {
-        type: idType,
-        number: idNumber,
-      };
-    }
-
-    console.log('Payment data prepared:', {
-      method: actualPaymentMethod,
-      amount: serverAmount,
-      payer: {
-        email: payerEmail,
-        first_name: firstName,
-        last_name: lastName,
-        identification: { type: idType, number: '***' },
-      },
-    });
-
-    console.log('Processing payment:', {
-      orderId,
-      method: paymentMethodId,
-      amount: serverAmount,
-    });
-
-    // Call Mercado Pago API to create payment with timeout
+    // Call Mercado Pago API
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 90000); // 90 second timeout
+    const timeoutId = setTimeout(() => controller.abort(), 90000);
     
     let mpResponse: Response;
     try {
@@ -258,7 +219,6 @@ serve(async (req) => {
     }
     clearTimeout(timeoutId);
 
-    // Check content type before parsing
     const contentType = mpResponse.headers.get('content-type');
     if (!contentType?.includes('application/json')) {
       const textResponse = await mpResponse.text();
@@ -273,8 +233,6 @@ serve(async (req) => {
 
     if (!mpResponse.ok) {
       console.error('Mercado Pago error:', mpData);
-      
-      // Parse Mercado Pago error for better feedback
       let errorMessage = 'Falha ao processar pagamento';
       if (mpData.cause && mpData.cause.length > 0) {
         errorMessage = mpData.cause[0].description || mpData.cause[0].code || errorMessage;
@@ -285,41 +243,31 @@ serve(async (req) => {
       }
       
       return new Response(
-        JSON.stringify({ 
-          error: errorMessage, 
-          details: mpData.cause?.[0]?.code || mpData.status || 'unknown_error'
-        }),
+        JSON.stringify({ error: errorMessage, details: mpData.cause?.[0]?.code || mpData.status || 'unknown_error' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Update order status in database
+    // Update order status
     let status = 'pending';
-    if (mpData.status === 'approved') {
-      status = 'paid';
-    } else if (mpData.status === 'rejected') {
-      status = 'rejected';
-    } else if (mpData.status === 'in_process') {
-      status = 'processing';
-    }
+    if (mpData.status === 'approved') status = 'paid';
+    else if (mpData.status === 'rejected') status = 'rejected';
+    else if (mpData.status === 'in_process') status = 'processing';
 
     await supabase
       .from('orders')
-      .update({ 
-        status,
-        mercado_pago_payment_id: mpData.id?.toString(),
-      })
+      .update({ status, mercado_pago_payment_id: mpData.id?.toString() })
       .eq('id', orderId);
 
-    // Build response based on payment method
+    // Build response
     const response: Record<string, unknown> = {
       id: mpData.id,
       status: mpData.status,
       status_detail: mpData.status_detail,
     };
 
-    // For PIX payments, include QR code data
-    if ((actualPaymentMethod === 'pix' || paymentMethodId === 'bank_transfer' || paymentMethodId === 'pix') && mpData.point_of_interaction?.transaction_data) {
+    // PIX data
+    if ((actualPaymentMethod === 'pix' || paymentMethodId === 'bank_transfer') && mpData.point_of_interaction?.transaction_data) {
       response.pix = {
         qr_code: mpData.point_of_interaction.transaction_data.qr_code,
         qr_code_base64: mpData.point_of_interaction.transaction_data.qr_code_base64,
@@ -327,13 +275,16 @@ serve(async (req) => {
       };
     }
 
-    // For boleto, include ticket URL
-    if ((paymentMethodId === 'bolbradesco' || paymentMethodId === 'ticket' || actualPaymentMethod === 'bolbradesco') && 
-        (mpData.transaction_details?.external_resource_url || mpData.point_of_interaction?.transaction_data?.ticket_url)) {
-      response.boleto = {
-        ticket_url: mpData.transaction_details?.external_resource_url || mpData.point_of_interaction?.transaction_data?.ticket_url,
-        barcode: mpData.barcode?.content,
-      };
+    // Boleto data
+    if (isBoleto) {
+      const ticketUrl = mpData.transaction_details?.external_resource_url || 
+                        mpData.point_of_interaction?.transaction_data?.ticket_url;
+      if (ticketUrl) {
+        response.boleto = {
+          ticket_url: ticketUrl,
+          barcode: mpData.barcode?.content,
+        };
+      }
     }
 
     return new Response(
@@ -342,7 +293,6 @@ serve(async (req) => {
     );
 
   } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     console.error('Error:', error);
     return new Response(
       JSON.stringify({ error: 'Internal server error' }),

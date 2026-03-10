@@ -62,6 +62,15 @@ const PublicRSVP = ({ weddingId }: PublicRSVPProps) => {
       return;
     }
 
+    // Validate companion names are required when guests > 1
+    if (formData.guests > 1 && formData.attending === "yes") {
+      const emptyCompanions = formData.companionNames.some(n => !n.trim());
+      if (emptyCompanions) {
+        toast.error("Por favor, preencha o nome de todos os acompanhantes.");
+        return;
+      }
+    }
+
     setLoading(true);
     
     try {
