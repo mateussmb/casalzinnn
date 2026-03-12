@@ -127,7 +127,7 @@ const Dashboard = () => {
       if (!user || initialLoaded) return;
 
       const { data: wedding } = await supabase
-        .from("weddings")
+        .from("wedding_config_safe" as any)
         .select("*")
         .eq("user_id", user.id)
         .single();
