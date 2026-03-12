@@ -422,6 +422,30 @@ const Dashboard = () => {
 
       setWeddingSlug(slug);
       
+      // Save MP credentials via edge function (encrypted server-side)
+      if (mercadoPagoAccessToken && weddingId) {
+        const session = await supabase.auth.getSession();
+        const token = session.data.session?.access_token;
+        if (token) {
+          const { data: credResult, error: credError } = await supabase.functions.invoke("save-mp-credentials", {
+            body: {
+              wedding_id: weddingId,
+              access_token: mercadoPagoAccessToken,
+              public_key: mercadoPagoPublicKey,
+            },
+          });
+
+          if (credError) {
+            console.error("Error saving credentials:", credError);
+            toast({
+              title: "Aviso",
+              description: "Configurações salvas, mas houve um erro ao criptografar credenciais do Mercado Pago.",
+              variant: "destructive",
+            });
+          }
+        }
+      }
+
       // Update story photos in context
       updateConfig({
         storyPhotos: [storyPhoto1, storyPhoto2, storyPhoto3].filter(Boolean),
