@@ -83,7 +83,7 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({ 
           valid: false, 
-          error: `Erro ao validar credenciais: ${errorData.message || 'Erro desconhecido'}` 
+          error: 'Erro ao validar credenciais. Verifique suas credenciais no painel do Mercado Pago.' 
         }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
@@ -125,12 +125,11 @@ serve(async (req) => {
     );
 
   } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
     console.error('Validation error:', error);
     return new Response(
       JSON.stringify({ 
         valid: false, 
-        error: `Erro ao validar: ${errorMessage}` 
+        error: 'Erro interno ao validar credenciais. Tente novamente mais tarde.' 
       }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
