@@ -83,7 +83,7 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({ 
           valid: false, 
-          error: `Erro ao validar credenciais: ${errorData.message || 'Erro desconhecido'}` 
+          error: 'Erro ao validar credenciais. Verifique suas credenciais no painel do Mercado Pago.' 
         }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
