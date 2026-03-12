@@ -74,30 +74,38 @@ const PublicRSVP = ({ weddingId }: PublicRSVPProps) => {
     setLoading(true);
     
     try {
-      const sanitizedName = formData.name.trim().replace(/[<>]/g, '').substring(0, 200);
+      const sanitizedName = formData.name.trim().replace(/[<>]/g, '').substring(0, 100);
       const clampedGuests = Math.max(1, Math.min(20, formData.guests));
       const sanitizedCompanions = formData.companionNames
         .map(n => n.trim().replace(/[<>]/g, '').substring(0, 200))
         .filter(Boolean);
 
-      const { error } = await supabase.from("rsvp_responses").insert({
-        wedding_id: weddingId,
-        guest_name: sanitizedName,
-        guests_count: clampedGuests,
-        attendance: formData.attending === "yes" ? "confirmed" : "declined",
-        companion_names: sanitizedCompanions,
-      } as any);
+      // Use edge function for server-side validation and rate limiting
+      const { data, error } = await supabase.functions.invoke("submit-rsvp", {
+        body: {
+          wedding_id: weddingId,
+          guest_name: sanitizedName,
+          attending: formData.attending === "yes" ? "confirmed" : "declined",
+          guest_count: clampedGuests,
+          companion_names: sanitizedCompanions,
+        },
+      });
 
       if (error) {
         console.error("RSVP error:", error);
         throw error;
       }
 
+      if (data?.error) {
+        throw new Error(data.error);
+      }
+
       setSubmitted(true);
       toast.success("Confirmação enviada com sucesso!");
-    } catch (err) {
+    } catch (err: unknown) {
       console.error("Error submitting RSVP:", err);
-      toast.error("Erro ao enviar confirmação. Por favor, tente novamente.");
+      const message = err instanceof Error ? err.message : "Erro ao enviar confirmação. Por favor, tente novamente.";
+      toast.error(message);
     } finally {
       setLoading(false);
     }
