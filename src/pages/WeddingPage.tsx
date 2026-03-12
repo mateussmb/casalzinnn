@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { Heart, Loader2, ArrowLeft } from "lucide-react";
 import { Heart, Loader2, ArrowLeft } from "lucide-react";
 import { WeddingProvider, WeddingConfig } from "@/contexts/WeddingContext";
 import PublicLanding from "@/components/wedding/PublicLanding";
