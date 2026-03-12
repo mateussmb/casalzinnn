@@ -237,20 +237,22 @@ const CheckoutModal = ({
     try {
       if (confirmAttendance && weddingId) {
         try {
-          const sanitizedName = guestName.trim().replace(/[<>]/g, '').substring(0, 200);
+          const sanitizedName = guestName.trim().replace(/[<>]/g, '').substring(0, 100);
           const sanitizedEmail = guestEmail.trim().replace(/[<>]/g, '').substring(0, 255) || null;
           const clampedGuests = Math.max(1, Math.min(20, attendanceGuests));
           const sanitizedCompanions = companionNames
             .map(n => n.trim().replace(/[<>]/g, '').substring(0, 200))
             .filter(Boolean);
-          await supabase.from("rsvp_responses").insert({
-            wedding_id: weddingId,
-            guest_name: sanitizedName,
-            guests_count: clampedGuests,
-            attendance: "confirmed",
-            guest_email: sanitizedEmail,
-            companion_names: sanitizedCompanions,
-          } as any);
+          await supabase.functions.invoke("submit-rsvp", {
+            body: {
+              wedding_id: weddingId,
+              guest_name: sanitizedName,
+              guest_email: sanitizedEmail,
+              attending: "confirmed",
+              guest_count: clampedGuests,
+              companion_names: sanitizedCompanions,
+            },
+          });
         } catch (rsvpErr) {
           console.error("RSVP save error:", rsvpErr);
         }

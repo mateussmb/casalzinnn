@@ -2,12 +2,14 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { z } from "https://deno.land/x/zod@v3.21.4/mod.ts";
 
+const ALLOWED_ORIGIN = Deno.env.get("ALLOWED_ORIGIN") || "*";
+
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  "Access-Control-Allow-Origin": ALLOWED_ORIGIN,
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-// Input validation schemas
 const CartItemSchema = z.object({
   id: z.string().min(1).max(100),
   name: z.string().min(1).max(200).trim(),
@@ -19,175 +21,168 @@ const CreatePaymentSchema = z.object({
   weddingId: z.string().uuid(),
   items: z.array(CartItemSchema).min(1).max(50),
   guestName: z.string().min(1).max(100).trim(),
-  guestEmail: z.string().email().max(255).optional().or(z.literal('')).transform(val => val || undefined),
+  guestEmail: z.string().email().max(255).optional().or(z.literal("")).transform((val) => val || undefined),
 });
 
-// Sanitize string for safe storage/display
 const sanitizeString = (str: string): string => {
-  return str
-    .replace(/[<>]/g, '') // Remove potential HTML tags
-    .replace(/javascript:/gi, '') // Remove javascript: protocol
-    .trim();
+  return str.replace(/[<>]/g, "").replace(/javascript:/gi, "").trim();
 };
 
+function hexToBytes(hex: string): Uint8Array {
+  const bytes = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < hex.length; i += 2) {
+    bytes[i / 2] = parseInt(hex.substring(i, i + 2), 16);
+  }
+  return bytes;
+}
+
+async function decryptValue(encryptedHex: string, ivHex: string, keyHex: string): Promise<string> {
+  const keyBytes = hexToBytes(keyHex);
+  const iv = hexToBytes(ivHex);
+  const cipherBytes = hexToBytes(encryptedHex);
+  const cryptoKey = await crypto.subtle.importKey("raw", keyBytes, { name: "AES-GCM" }, false, ["decrypt"]);
+  const plainBuffer = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, cryptoKey, cipherBytes);
+  return new TextDecoder().decode(plainBuffer);
+}
+
 serve(async (req) => {
-  // Handle CORS preflight
-  if (req.method === 'OPTIONS') {
+  if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    // Parse and validate input
     const rawBody = await req.json();
-    
     const validationResult = CreatePaymentSchema.safeParse(rawBody);
-    
+
     if (!validationResult.success) {
-      console.error('Validation error:', validationResult.error.errors);
       return new Response(
-        JSON.stringify({ 
-          error: 'Invalid input', 
-          details: validationResult.error.errors.map(e => ({
-            field: e.path.join('.'),
+        JSON.stringify({
+          error: "Invalid input",
+          details: validationResult.error.errors.map((e) => ({
+            field: e.path.join("."),
             message: e.message,
-          }))
+          })),
         }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
     const { weddingId, items, guestName, guestEmail } = validationResult.data;
-
-    // Sanitize user-provided strings
     const sanitizedGuestName = sanitizeString(guestName);
     const sanitizedGuestEmail = guestEmail ? sanitizeString(guestEmail) : undefined;
 
-    // Create Supabase client with service role to access wedding credentials
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const encryptionKey = Deno.env.get("ENCRYPTION_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Fetch the wedding to get Mercado Pago credentials
+    // Fetch wedding credentials (prefer encrypted)
     const { data: wedding, error: weddingError } = await supabase
-      .from('weddings')
-      .select('mercado_pago_access_token, couple_name')
-      .eq('id', weddingId)
+      .from("weddings")
+      .select("mp_access_token_encrypted, mp_access_token_iv, mercado_pago_access_token, couple_name")
+      .eq("id", weddingId)
       .single();
 
     if (weddingError || !wedding) {
-      console.error('Wedding fetch error:', weddingError);
       return new Response(
-        JSON.stringify({ error: 'Wedding not found' }),
-        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ error: "Wedding not found" }),
+        { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    if (!wedding.mercado_pago_access_token) {
+    // Decrypt access token
+    let accessToken: string;
+    if (wedding.mp_access_token_encrypted && wedding.mp_access_token_iv) {
+      accessToken = await decryptValue(wedding.mp_access_token_encrypted, wedding.mp_access_token_iv, encryptionKey);
+    } else if (wedding.mercado_pago_access_token) {
+      accessToken = wedding.mercado_pago_access_token;
+    } else {
       return new Response(
-        JSON.stringify({ error: 'Mercado Pago not configured for this wedding' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ error: "Mercado Pago not configured for this wedding" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Verify items against the gift database to prevent price manipulation
-    const giftIds = items.filter(i => !i.id.startsWith('envelope')).map(i => i.id);
-    
+    // Verify gift prices
+    const giftIds = items.filter((i) => !i.id.startsWith("envelope")).map((i) => i.id);
     if (giftIds.length > 0) {
       const { data: gifts, error: giftsError } = await supabase
-        .from('gifts')
-        .select('id, price, name')
-        .in('id', giftIds)
-        .eq('wedding_id', weddingId);
+        .from("gifts")
+        .select("id, price, name")
+        .in("id", giftIds)
+        .eq("wedding_id", weddingId);
 
       if (giftsError) {
-        console.error('Gifts fetch error:', giftsError);
         return new Response(
-          JSON.stringify({ error: 'Failed to verify gift prices' }),
-          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          JSON.stringify({ error: "Failed to verify gift prices" }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
 
-      // Verify each gift price matches database
       for (const item of items) {
-        if (item.id.startsWith('envelope')) continue; // Custom envelope amounts
-        
-        const gift = gifts?.find(g => g.id === item.id);
+        if (item.id.startsWith("envelope")) continue;
+        const gift = gifts?.find((g) => g.id === item.id);
         if (!gift) {
           return new Response(
             JSON.stringify({ error: `Gift not found: ${item.id}` }),
-            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
           );
         }
-        
-        // Allow small floating point differences
         if (Math.abs(Number(gift.price) - item.unit_price) > 0.01) {
-          console.error('Price mismatch:', { item, dbPrice: gift.price });
           return new Response(
-            JSON.stringify({ error: 'Price mismatch detected' }),
-            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            JSON.stringify({ error: "Price mismatch detected" }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
           );
         }
       }
     }
 
-    // Calculate total server-side (don't trust client)
-    const total = items.reduce((sum, item) => sum + (item.unit_price * item.quantity), 0);
+    const total = items.reduce((sum, item) => sum + item.unit_price * item.quantity, 0);
 
-    // Create order in database
+    // Create order
     const { data: order, error: orderError } = await supabase
-      .from('orders')
+      .from("orders")
       .insert({
         wedding_id: weddingId,
         guest_name: sanitizedGuestName,
         guest_email: sanitizedGuestEmail || null,
         total_amount: total,
-        status: 'pending',
+        status: "pending",
       })
       .select()
       .single();
 
     if (orderError) {
-      console.error('Order creation error:', orderError);
       return new Response(
-        JSON.stringify({ error: 'Failed to create order' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ error: "Failed to create order" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Create order items with sanitized names
-    const orderItems = items.map(item => ({
+    // Create order items
+    const orderItems = items.map((item) => ({
       order_id: order.id,
-      gift_id: item.id.startsWith('envelope') ? null : item.id,
+      gift_id: item.id.startsWith("envelope") ? null : item.id,
       gift_name: sanitizeString(item.name),
       quantity: item.quantity,
       unit_price: item.unit_price,
     }));
+    await supabase.from("order_items").insert(orderItems);
 
-    const { error: itemsError } = await supabase
-      .from('order_items')
-      .insert(orderItems);
-
-    if (itemsError) {
-      console.error('Order items error:', itemsError);
-    }
-
-    // Create Mercado Pago preference
+    // Create MP preference
     const preference = {
-      items: items.map(item => ({
+      items: items.map((item) => ({
         id: item.id,
         title: sanitizeString(item.name),
         quantity: item.quantity,
         currency_id: "BRL",
         unit_price: item.unit_price,
       })),
-      payer: {
-        name: sanitizedGuestName,
-        email: sanitizedGuestEmail || undefined,
-      },
+      payer: { name: sanitizedGuestName, email: sanitizedGuestEmail || undefined },
       back_urls: {
-        success: `${req.headers.get('origin')}/payment-success?order=${order.id}`,
-        failure: `${req.headers.get('origin')}/payment-failure?order=${order.id}`,
-        pending: `${req.headers.get('origin')}/payment-pending?order=${order.id}`,
+        success: `${req.headers.get("origin")}/payment-success?order=${order.id}`,
+        failure: `${req.headers.get("origin")}/payment-failure?order=${order.id}`,
+        pending: `${req.headers.get("origin")}/payment-pending?order=${order.id}`,
       },
       auto_return: "approved",
       external_reference: order.id,
@@ -195,31 +190,24 @@ serve(async (req) => {
       notification_url: `${supabaseUrl}/functions/v1/payment-webhook`,
     };
 
-    const mpResponse = await fetch('https://api.mercadopago.com/checkout/preferences', {
-      method: 'POST',
+    const mpResponse = await fetch("https://api.mercadopago.com/checkout/preferences", {
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${wedding.mercado_pago_access_token}`,
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${accessToken}`,
       },
       body: JSON.stringify(preference),
     });
 
     if (!mpResponse.ok) {
-      const errorData = await mpResponse.text();
-      console.error('Mercado Pago error:', errorData);
       return new Response(
-        JSON.stringify({ error: 'Failed to create payment preference' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ error: "Failed to create payment preference" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
     const mpData = await mpResponse.json();
-
-    // Update order with preference ID
-    await supabase
-      .from('orders')
-      .update({ mercado_pago_preference_id: mpData.id })
-      .eq('id', order.id);
+    await supabase.from("orders").update({ mercado_pago_preference_id: mpData.id }).eq("id", order.id);
 
     return new Response(
       JSON.stringify({
@@ -228,15 +216,13 @@ serve(async (req) => {
         sandboxInitPoint: mpData.sandbox_init_point,
         orderId: order.id,
       }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
-
   } catch (error: unknown) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    console.error('Error:', error);
+    console.error("Error:", error);
     return new Response(
-      JSON.stringify({ error: 'Internal server error' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      JSON.stringify({ error: "Internal server error" }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
 });

@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
 import { Heart, Loader2, ArrowLeft } from "lucide-react";
 import { WeddingProvider, WeddingConfig } from "@/contexts/WeddingContext";
 import PublicLanding from "@/components/wedding/PublicLanding";
@@ -165,90 +164,7 @@ const WeddingPage = () => {
       }
 
       try {
-        // Use secure edge function to fetch public wedding data
-        // This prevents exposure of mercado_pago_access_token
-        const { data, error: fnError } = await supabase.functions.invoke(
-          'get-public-wedding',
-          {
-            body: null,
-            headers: {},
-          }
-        );
-
-        // If edge function is not deployed yet, fall back to direct query with explicit columns
-        if (fnError) {
-          console.log('Falling back to direct query');
-          const { data: weddingData, error: weddingError } = await supabase
-            .from("public_weddings" as any)
-            .select(`
-              id,
-              couple_name,
-              wedding_date,
-              tagline,
-              slug,
-              layout,
-              section_about,
-              section_wedding_info,
-              section_gifts,
-              section_rsvp,
-              section_message_wall,
-              section_gallery,
-              section_video,
-              section_dress_code,
-              hero_image_url,
-              video_url,
-              ceremony_date,
-              ceremony_time,
-              ceremony_location,
-              ceremony_address,
-              reception_location,
-              reception_address,
-              reception_time,
-              same_location,
-              about_text,
-              dress_code_text,
-              colors_to_avoid,
-              additional_info,
-              story_photo_1,
-              story_photo_2,
-              story_photo_3,
-              partner1_name,
-              partner2_name,
-              mercado_pago_public_key,
-              payment_credit_card,
-              payment_pix,
-              payment_boleto,
-              max_installments
-            `)
-            .eq("slug", slug)
-            .single();
-
-          if (weddingError || !weddingData) {
-            setError("Casamento não encontrado");
-            setLoading(false);
-            return;
-          }
-
-          setWedding(weddingData as unknown as WeddingData);
-
-          // Fetch gifts
-          const typedWedding = weddingData as unknown as WeddingData;
-          const { data: giftsData } = await supabase
-            .from("gifts")
-            .select("id, name, category, price, image_url, external_link")
-            .eq("wedding_id", typedWedding.id);
-
-          setGifts(giftsData || []);
-          setLoading(false);
-          return;
-        }
-
-        // Use edge function response
-        const response = await supabase.functions.invoke('get-public-wedding', {
-          headers: {},
-        });
-
-        // Actually call with the slug as query param
+        // Use edge function to fetch public wedding data securely
         const baseUrl = import.meta.env.VITE_SUPABASE_URL;
         const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
         
@@ -263,7 +179,7 @@ const WeddingPage = () => {
         );
 
         if (!fetchResponse.ok) {
-          const errorData = await fetchResponse.json();
+          const errorData = await fetchResponse.json().catch(() => ({}));
           setError(errorData.error || "Casamento não encontrado");
           setLoading(false);
           return;
