@@ -343,7 +343,6 @@ const Dashboard = () => {
         colors_to_avoid: config.colorsToAvoid || null,
         additional_info: config.additionalInfo || null,
         mercado_pago_public_key: mercadoPagoPublicKey || null,
-        mercado_pago_access_token: mercadoPagoAccessToken || null,
         payment_credit_card: paymentCreditCard,
         payment_pix: paymentPix,
         payment_boleto: paymentBoleto,
