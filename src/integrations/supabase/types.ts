@@ -51,6 +51,13 @@ export type Database = {
             foreignKeyName: "gallery_images_wedding_id_fkey"
             columns: ["wedding_id"]
             isOneToOne: false
+            referencedRelation: "wedding_config_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "gallery_images_wedding_id_fkey"
+            columns: ["wedding_id"]
+            isOneToOne: false
             referencedRelation: "weddings"
             referencedColumns: ["id"]
           },
@@ -99,6 +106,13 @@ export type Database = {
             foreignKeyName: "gifts_wedding_id_fkey"
             columns: ["wedding_id"]
             isOneToOne: false
+            referencedRelation: "wedding_config_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "gifts_wedding_id_fkey"
+            columns: ["wedding_id"]
+            isOneToOne: false
             referencedRelation: "weddings"
             referencedColumns: ["id"]
           },
@@ -132,6 +146,13 @@ export type Database = {
             columns: ["wedding_id"]
             isOneToOne: false
             referencedRelation: "public_weddings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "messages_wedding_id_fkey"
+            columns: ["wedding_id"]
+            isOneToOne: false
+            referencedRelation: "wedding_config_safe"
             referencedColumns: ["id"]
           },
           {
@@ -237,6 +258,13 @@ export type Database = {
             foreignKeyName: "orders_wedding_id_fkey"
             columns: ["wedding_id"]
             isOneToOne: false
+            referencedRelation: "wedding_config_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orders_wedding_id_fkey"
+            columns: ["wedding_id"]
+            isOneToOne: false
             referencedRelation: "weddings"
             referencedColumns: ["id"]
           },
@@ -266,6 +294,27 @@ export type Database = {
           id?: string
           updated_at?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      rate_limit_log: {
+        Row: {
+          action: string
+          created_at: string | null
+          id: string
+          identifier: string
+        }
+        Insert: {
+          action: string
+          created_at?: string | null
+          id?: string
+          identifier: string
+        }
+        Update: {
+          action?: string
+          created_at?: string | null
+          id?: string
+          identifier?: string
         }
         Relationships: []
       }
@@ -318,6 +367,13 @@ export type Database = {
             foreignKeyName: "rsvp_responses_wedding_id_fkey"
             columns: ["wedding_id"]
             isOneToOne: false
+            referencedRelation: "wedding_config_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rsvp_responses_wedding_id_fkey"
+            columns: ["wedding_id"]
+            isOneToOne: false
             referencedRelation: "weddings"
             referencedColumns: ["id"]
           },
@@ -341,6 +397,10 @@ export type Database = {
           max_installments: number
           mercado_pago_access_token: string | null
           mercado_pago_public_key: string | null
+          mp_access_token_encrypted: string | null
+          mp_access_token_iv: string | null
+          mp_secret_key_encrypted: string | null
+          mp_secret_key_iv: string | null
           partner1_name: string
           partner2_name: string
           payment_boleto: boolean
@@ -385,6 +445,10 @@ export type Database = {
           max_installments?: number
           mercado_pago_access_token?: string | null
           mercado_pago_public_key?: string | null
+          mp_access_token_encrypted?: string | null
+          mp_access_token_iv?: string | null
+          mp_secret_key_encrypted?: string | null
+          mp_secret_key_iv?: string | null
           partner1_name?: string
           partner2_name?: string
           payment_boleto?: boolean
@@ -429,6 +493,10 @@ export type Database = {
           max_installments?: number
           mercado_pago_access_token?: string | null
           mercado_pago_public_key?: string | null
+          mp_access_token_encrypted?: string | null
+          mp_access_token_iv?: string | null
+          mp_secret_key_encrypted?: string | null
+          mp_secret_key_iv?: string | null
           partner1_name?: string
           partner2_name?: string
           payment_boleto?: boolean
@@ -578,6 +646,138 @@ export type Database = {
           story_photo_2?: string | null
           story_photo_3?: string | null
           tagline?: string | null
+          video_url?: string | null
+          wedding_date?: string | null
+        }
+        Relationships: []
+      }
+      wedding_config_safe: {
+        Row: {
+          about_text: string | null
+          additional_info: string | null
+          ceremony_address: string | null
+          ceremony_date: string | null
+          ceremony_location: string | null
+          ceremony_time: string | null
+          colors_to_avoid: string | null
+          couple_name: string | null
+          created_at: string | null
+          dress_code_text: string | null
+          hero_image_url: string | null
+          id: string | null
+          layout: string | null
+          max_installments: number | null
+          mercado_pago_public_key: string | null
+          partner1_name: string | null
+          partner2_name: string | null
+          payment_boleto: boolean | null
+          payment_credit_card: boolean | null
+          payment_pix: boolean | null
+          reception_address: string | null
+          reception_location: string | null
+          reception_time: string | null
+          same_location: boolean | null
+          section_about: boolean | null
+          section_dress_code: boolean | null
+          section_gallery: boolean | null
+          section_gifts: boolean | null
+          section_message_wall: boolean | null
+          section_rsvp: boolean | null
+          section_video: boolean | null
+          section_wedding_info: boolean | null
+          slug: string | null
+          story_photo_1: string | null
+          story_photo_2: string | null
+          story_photo_3: string | null
+          tagline: string | null
+          updated_at: string | null
+          user_id: string | null
+          video_url: string | null
+          wedding_date: string | null
+        }
+        Insert: {
+          about_text?: string | null
+          additional_info?: string | null
+          ceremony_address?: string | null
+          ceremony_date?: string | null
+          ceremony_location?: string | null
+          ceremony_time?: string | null
+          colors_to_avoid?: string | null
+          couple_name?: string | null
+          created_at?: string | null
+          dress_code_text?: string | null
+          hero_image_url?: string | null
+          id?: string | null
+          layout?: string | null
+          max_installments?: number | null
+          mercado_pago_public_key?: string | null
+          partner1_name?: string | null
+          partner2_name?: string | null
+          payment_boleto?: boolean | null
+          payment_credit_card?: boolean | null
+          payment_pix?: boolean | null
+          reception_address?: string | null
+          reception_location?: string | null
+          reception_time?: string | null
+          same_location?: boolean | null
+          section_about?: boolean | null
+          section_dress_code?: boolean | null
+          section_gallery?: boolean | null
+          section_gifts?: boolean | null
+          section_message_wall?: boolean | null
+          section_rsvp?: boolean | null
+          section_video?: boolean | null
+          section_wedding_info?: boolean | null
+          slug?: string | null
+          story_photo_1?: string | null
+          story_photo_2?: string | null
+          story_photo_3?: string | null
+          tagline?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+          video_url?: string | null
+          wedding_date?: string | null
+        }
+        Update: {
+          about_text?: string | null
+          additional_info?: string | null
+          ceremony_address?: string | null
+          ceremony_date?: string | null
+          ceremony_location?: string | null
+          ceremony_time?: string | null
+          colors_to_avoid?: string | null
+          couple_name?: string | null
+          created_at?: string | null
+          dress_code_text?: string | null
+          hero_image_url?: string | null
+          id?: string | null
+          layout?: string | null
+          max_installments?: number | null
+          mercado_pago_public_key?: string | null
+          partner1_name?: string | null
+          partner2_name?: string | null
+          payment_boleto?: boolean | null
+          payment_credit_card?: boolean | null
+          payment_pix?: boolean | null
+          reception_address?: string | null
+          reception_location?: string | null
+          reception_time?: string | null
+          same_location?: boolean | null
+          section_about?: boolean | null
+          section_dress_code?: boolean | null
+          section_gallery?: boolean | null
+          section_gifts?: boolean | null
+          section_message_wall?: boolean | null
+          section_rsvp?: boolean | null
+          section_video?: boolean | null
+          section_wedding_info?: boolean | null
+          slug?: string | null
+          story_photo_1?: string | null
+          story_photo_2?: string | null
+          story_photo_3?: string | null
+          tagline?: string | null
+          updated_at?: string | null
+          user_id?: string | null
           video_url?: string | null
           wedding_date?: string | null
         }
