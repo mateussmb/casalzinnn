@@ -14,3 +14,9 @@ verify_jwt = false
 
 [functions.get-public-wedding]
 verify_jwt = false
+
+[functions.save-mp-credentials]
+verify_jwt = false
+
+[functions.submit-rsvp]
+verify_jwt = false
