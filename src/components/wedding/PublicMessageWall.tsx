@@ -36,11 +36,11 @@ const PublicMessageWall = ({ weddingId }: PublicMessageWallProps) => {
       }
 
       try {
-        const { data, error } = await supabase
+        const { data, error } = await (supabase
           .from("messages")
-          .select("id, guest_name, message, created_at")
+          .select("id, guest_name, message, created_at") as any)
           .eq("wedding_id", weddingId)
-          .eq("show_on_wall" as any, true)
+          .eq("show_on_wall", true)
           .order("created_at", { ascending: false })
           .limit(50);
 
