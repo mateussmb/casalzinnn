@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { MessageSquare } from "lucide-react";
 import {
@@ -28,6 +28,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -127,18 +128,13 @@ const CheckoutModal = ({
   const [boletoData, setBoletoData] = useState<BoletoData | null>(null);
   const [pixCopied, setPixCopied] = useState(false);
   
-  // RSVP confirmation in checkout
-  const [confirmAttendance, setConfirmAttendance] = useState(false);
+  // Attendance fields (required)
+  const [willAttend, setWillAttend] = useState<"yes" | "no" | "">("");
   const [attendanceGuests, setAttendanceGuests] = useState(1);
   const [companionNames, setCompanionNames] = useState<string[]>([]);
 
-  // Address fields for boleto
-  const [payerZipCode, setPayerZipCode] = useState("");
-  const [payerStreet, setPayerStreet] = useState("");
-  const [payerStreetNumber, setPayerStreetNumber] = useState("");
-  const [payerNeighborhood, setPayerNeighborhood] = useState("");
-  const [payerCity, setPayerCity] = useState("");
-  const [payerState, setPayerState] = useState("");
+  // Track if abandonment was saved
+  const [abandonmentSaved, setAbandonmentSaved] = useState(false);
 
   useEffect(() => {
     if (mercadoPagoPublicKey && !mpInitialized) {
@@ -159,7 +155,32 @@ const CheckoutModal = ({
     });
   };
 
+  // Save checkout abandonment
+  const saveAbandonment = useCallback(async () => {
+    if (abandonmentSaved || !weddingId || !guestName.trim() || !guestEmail.trim()) return;
+    if (step === "success" || step === "pix" || step === "boleto") return;
+    
+    try {
+      setAbandonmentSaved(true);
+      const giftIds = items.map(item => ({ id: item.gift.id, name: item.gift.name, quantity: item.quantity }));
+      await supabase.from("checkout_abandonments").insert({
+        wedding_id: weddingId,
+        guest_name: guestName.trim().substring(0, 100),
+        guest_email: guestEmail.trim().substring(0, 255),
+        guest_phone: guestPhone.trim() || null,
+        gift_ids: giftIds,
+      });
+    } catch (err) {
+      console.error("Abandonment tracking error:", err);
+    }
+  }, [abandonmentSaved, weddingId, guestName, guestEmail, guestPhone, items, step]);
+
   const handleClose = () => {
+    // Save abandonment if user is closing without completing
+    if (step === "info" && guestName.trim() && guestEmail.trim()) {
+      saveAbandonment();
+    }
+
     if (step !== "pix" && step !== "boleto") {
       setStep("cart");
       setGuestName("");
@@ -168,15 +189,10 @@ const CheckoutModal = ({
       setOrderId(null);
       setPixData(null);
       setBoletoData(null);
-      setConfirmAttendance(false);
+      setWillAttend("");
       setAttendanceGuests(1);
       setCompanionNames([]);
-      setPayerZipCode("");
-      setPayerStreet("");
-      setPayerStreetNumber("");
-      setPayerNeighborhood("");
-      setPayerCity("");
-      setPayerState("");
+      setAbandonmentSaved(false);
     }
     onClose();
   };
@@ -196,30 +212,23 @@ const CheckoutModal = ({
     return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
   };
 
-  const formatCep = (value: string) => {
-    const digits = value.replace(/\D/g, "").substring(0, 8);
-    if (digits.length <= 5) return digits;
-    return `${digits.slice(0, 5)}-${digits.slice(5)}`;
+  const isValidEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+
+  const isInfoStepValid = () => {
+    if (!guestName.trim()) return false;
+    if (!guestEmail.trim() || !isValidEmail(guestEmail.trim())) return false;
+    if (!guestPhone.trim() || guestPhone.replace(/\D/g, "").length < 10) return false;
+    if (!willAttend) return false;
+    if (willAttend === "yes" && attendanceGuests > 1) {
+      if (companionNames.some(n => !n.trim())) return false;
+    }
+    return true;
   };
 
   const handleProceedToPayment = async () => {
-    if (!guestName.trim()) {
-      toast.error("Por favor, informe seu nome");
+    if (!isInfoStepValid()) {
+      toast.error("Por favor, preencha todos os campos obrigatórios");
       return;
-    }
-
-    if (!guestPhone.trim() || guestPhone.replace(/\D/g, "").length < 10) {
-      toast.error("Por favor, informe um telefone válido");
-      return;
-    }
-
-    // Validate companion names if attendance confirmed with guests > 1
-    if (confirmAttendance && attendanceGuests > 1) {
-      const emptyCompanions = companionNames.some(n => !n.trim());
-      if (emptyCompanions) {
-        toast.error("Por favor, preencha o nome de todos os acompanhantes");
-        return;
-      }
     }
 
     if (!weddingId) {
@@ -235,10 +244,11 @@ const CheckoutModal = ({
     setLoading(true);
 
     try {
-      if (confirmAttendance && weddingId) {
+      // Submit RSVP if attending
+      if (willAttend === "yes" && weddingId) {
         try {
           const sanitizedName = guestName.trim().replace(/[<>]/g, '').substring(0, 100);
-          const sanitizedEmail = guestEmail.trim().replace(/[<>]/g, '').substring(0, 255) || null;
+          const sanitizedEmail = guestEmail.trim().replace(/[<>]/g, '').substring(0, 255);
           const clampedGuests = Math.max(1, Math.min(20, attendanceGuests));
           const sanitizedCompanions = companionNames
             .map(n => n.trim().replace(/[<>]/g, '').substring(0, 200))
@@ -251,6 +261,7 @@ const CheckoutModal = ({
               attending: "confirmed",
               guest_count: clampedGuests,
               companion_names: sanitizedCompanions,
+              phone: guestPhone.trim(),
             },
           });
         } catch (rsvpErr) {
@@ -279,7 +290,8 @@ const CheckoutModal = ({
           weddingId,
           items: paymentItems,
           guestName: guestName.trim(),
-          guestEmail: guestEmail.trim() || undefined,
+          guestEmail: guestEmail.trim(),
+          giftMessage: giftMessage.trim() || undefined,
         },
       });
 
@@ -336,7 +348,7 @@ const CheckoutModal = ({
       const firstName = nameParts[0] || 'Convidado';
       const lastName = nameParts.slice(1).join(' ') || 'Anônimo';
 
-      const payerEmail = guestEmail.trim() || `guest-${Date.now()}@wedding.local`;
+      const payerEmail = guestEmail.trim();
 
       const { data, error } = await supabase.functions.invoke("process-payment", {
         body: {
@@ -353,13 +365,6 @@ const CheckoutModal = ({
           identificationType: identification?.type || 'CPF',
           identificationNumber: identification?.number || '',
           transactionAmount: getTotalPrice(),
-          // Address for boleto
-          payerZipCode: payerZipCode.replace(/\D/g, ''),
-          payerStreet,
-          payerStreetNumber,
-          payerNeighborhood,
-          payerCity,
-          payerState,
         },
       });
 
@@ -681,7 +686,7 @@ const CheckoutModal = ({
                   />
                 </div>
                 <div>
-                  <Label htmlFor="guestEmail">Seu E-mail (recomendado)</Label>
+                  <Label htmlFor="guestEmail">Seu E-mail *</Label>
                   <Input
                     id="guestEmail"
                     type="email"
@@ -690,6 +695,9 @@ const CheckoutModal = ({
                     placeholder="Digite seu e-mail"
                     className="mt-1.5"
                   />
+                  {guestEmail && !isValidEmail(guestEmail) && (
+                    <p className="text-xs text-destructive mt-1">Formato de e-mail inválido</p>
+                  )}
                   <p className="text-xs text-muted-foreground mt-1">
                     Usado para enviar o comprovante e no pagamento
                   </p>
@@ -710,35 +718,48 @@ const CheckoutModal = ({
                   />
                 </div>
 
-                {/* RSVP Confirmation */}
+                {/* Attendance - Required */}
                 <div className="p-3 sm:p-4 bg-gold/5 border border-gold/20 rounded-lg">
-                  <div className="flex items-start gap-3">
-                    <Checkbox
-                      id="confirmAttendance"
-                      checked={confirmAttendance}
-                      onCheckedChange={(checked) =>
-                        setConfirmAttendance(checked === true)
-                      }
-                      className="mt-1"
-                    />
-                    <div className="flex-1">
-                      <label
-                        htmlFor="confirmAttendance"
-                        className="font-medium text-foreground cursor-pointer flex items-center gap-2 text-sm sm:text-base"
-                      >
-                        <Users className="w-4 h-4 text-gold" />
-                        Confirmar presença no casamento
-                      </label>
-                      <p className="text-xs sm:text-sm text-muted-foreground mt-1">
-                        Aproveite para confirmar sua presença junto com o presente
-                      </p>
-                    </div>
-                  </div>
-                  {confirmAttendance && (
-                    <div className="mt-3 ml-7 space-y-3">
+                  <Label className="font-medium text-foreground flex items-center gap-2 text-sm sm:text-base mb-3">
+                    <Users className="w-4 h-4 text-gold" />
+                    Você vai estar presente no casamento? *
+                  </Label>
+                  <RadioGroup
+                    value={willAttend}
+                    onValueChange={(val) => setWillAttend(val as "yes" | "no")}
+                    className="grid grid-cols-2 gap-3"
+                  >
+                    <label
+                      className={`flex items-center justify-center gap-2 p-3 rounded-lg border-2 cursor-pointer transition-all ${
+                        willAttend === "yes"
+                          ? "border-gold bg-gold/10"
+                          : "border-border hover:border-gold/50"
+                      }`}
+                    >
+                      <RadioGroupItem value="yes" className="sr-only" />
+                      <span className={willAttend === "yes" ? "text-gold font-medium" : "text-foreground"}>
+                        Sim, estarei presente
+                      </span>
+                    </label>
+                    <label
+                      className={`flex items-center justify-center gap-2 p-3 rounded-lg border-2 cursor-pointer transition-all ${
+                        willAttend === "no"
+                          ? "border-gold bg-gold/10"
+                          : "border-border hover:border-gold/50"
+                      }`}
+                    >
+                      <RadioGroupItem value="no" className="sr-only" />
+                      <span className={willAttend === "no" ? "text-gold font-medium" : "text-foreground"}>
+                        Não poderei ir
+                      </span>
+                    </label>
+                  </RadioGroup>
+
+                  {willAttend === "yes" && (
+                    <div className="mt-3 space-y-3">
                       <div>
                         <Label htmlFor="attendanceGuests" className="text-sm">
-                          Quantidade de pessoas (incluindo você)
+                          Quantidade de pessoas (incluindo você) *
                         </Label>
                         <select
                           id="attendanceGuests"
@@ -746,7 +767,7 @@ const CheckoutModal = ({
                           onChange={(e) => handleAttendanceGuestsChange(parseInt(e.target.value))}
                           className="mt-1 w-full px-3 py-2 rounded-md border border-input bg-background text-sm"
                         >
-                          {[1, 2, 3, 4, 5].map((num) => (
+                          {Array.from({ length: 20 }, (_, i) => i + 1).map((num) => (
                             <option key={num} value={num}>
                               {num} {num === 1 ? "pessoa" : "pessoas"}
                             </option>
@@ -775,85 +796,6 @@ const CheckoutModal = ({
                     </div>
                   )}
                 </div>
-
-                {/* Address section for boleto */}
-                {paymentBoleto && (
-                  <div className="p-3 sm:p-4 bg-secondary/50 border border-border rounded-lg">
-                    <p className="text-sm font-medium text-foreground mb-3 flex items-center gap-2">
-                      <FileText className="w-4 h-4 text-gold" />
-                      Endereço (necessário para boleto)
-                    </p>
-                    <div className="space-y-3">
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <Label className="text-xs">CEP</Label>
-                          <Input
-                            value={payerZipCode}
-                            onChange={(e) => setPayerZipCode(formatCep(e.target.value))}
-                            placeholder="00000-000"
-                            className="mt-1 text-sm"
-                            maxLength={9}
-                          />
-                        </div>
-                        <div>
-                          <Label className="text-xs">Número</Label>
-                          <Input
-                            value={payerStreetNumber}
-                            onChange={(e) => setPayerStreetNumber(e.target.value)}
-                            placeholder="123"
-                            className="mt-1 text-sm"
-                            maxLength={10}
-                          />
-                        </div>
-                      </div>
-                      <div>
-                        <Label className="text-xs">Rua</Label>
-                        <Input
-                          value={payerStreet}
-                          onChange={(e) => setPayerStreet(e.target.value)}
-                          placeholder="Nome da rua"
-                          className="mt-1 text-sm"
-                          maxLength={200}
-                        />
-                      </div>
-                      <div>
-                        <Label className="text-xs">Bairro</Label>
-                        <Input
-                          value={payerNeighborhood}
-                          onChange={(e) => setPayerNeighborhood(e.target.value)}
-                          placeholder="Bairro"
-                          className="mt-1 text-sm"
-                          maxLength={100}
-                        />
-                      </div>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <Label className="text-xs">Cidade</Label>
-                          <Input
-                            value={payerCity}
-                            onChange={(e) => setPayerCity(e.target.value)}
-                            placeholder="Cidade"
-                            className="mt-1 text-sm"
-                            maxLength={100}
-                          />
-                        </div>
-                        <div>
-                          <Label className="text-xs">Estado</Label>
-                          <select
-                            value={payerState}
-                            onChange={(e) => setPayerState(e.target.value)}
-                            className="mt-1 w-full px-3 py-2 rounded-md border border-input bg-background text-sm h-10"
-                          >
-                            <option value="">UF</option>
-                            {["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"].map(uf => (
-                              <option key={uf} value={uf}>{uf}</option>
-                            ))}
-                          </select>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
               </div>
             )}
 
@@ -915,7 +857,7 @@ const CheckoutModal = ({
                 <p className="text-muted-foreground text-sm sm:text-base">
                   Seu presente para {config.coupleName} foi registrado com sucesso.
                 </p>
-                {confirmAttendance && (
+                {willAttend === "yes" && (
                   <p className="text-sm text-gold">
                     ✓ Sua presença foi confirmada para {attendanceGuests} {attendanceGuests === 1 ? "pessoa" : "pessoas"}
                   </p>
@@ -1054,7 +996,7 @@ const CheckoutModal = ({
                   </Button>
                   <Button
                     onClick={handleProceedToPayment}
-                    disabled={loading || !guestName.trim()}
+                    disabled={loading || !isInfoStepValid()}
                     className="flex-1 bg-gold hover:bg-gold-dark text-white"
                   >
                     {loading ? (

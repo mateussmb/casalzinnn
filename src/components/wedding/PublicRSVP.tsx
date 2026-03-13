@@ -1,13 +1,15 @@
 import { motion } from "framer-motion";
 import { useInView } from "framer-motion";
 import { useRef, useState } from "react";
-import { Send, CheckCircle, Users, Loader2 } from "lucide-react";
+import { Send, CheckCircle, Users, Loader2, Phone, Mail } from "lucide-react";
 import { useWedding } from "@/contexts/WeddingContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
 interface RSVPFormData {
   name: string;
+  email: string;
+  phone: string;
   guests: number;
   attending: "yes" | "no" | "";
   companionNames: string[];
@@ -25,10 +27,21 @@ const PublicRSVP = ({ weddingId }: PublicRSVPProps) => {
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState<RSVPFormData>({
     name: "",
+    email: "",
+    phone: "",
     guests: 1,
     attending: "",
     companionNames: [],
   });
+
+  const formatPhone = (value: string) => {
+    const digits = value.replace(/\D/g, "").substring(0, 11);
+    if (digits.length <= 2) return digits;
+    if (digits.length <= 7) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+  };
+
+  const isValidEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
   const handleGuestsChange = (value: number) => {
     const newCompanions = Array.from({ length: Math.max(0, value - 1) }, (_, i) =>
@@ -49,6 +62,16 @@ const PublicRSVP = ({ weddingId }: PublicRSVPProps) => {
     });
   };
 
+  const isFormValid = () => {
+    if (!formData.name.trim()) return false;
+    if (!formData.email.trim() || !isValidEmail(formData.email.trim())) return false;
+    if (!formData.attending) return false;
+    if (formData.guests > 1 && formData.attending === "yes") {
+      if (formData.companionNames.some(n => !n.trim())) return false;
+    }
+    return true;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -57,37 +80,30 @@ const PublicRSVP = ({ weddingId }: PublicRSVPProps) => {
       return;
     }
 
-    if (!formData.name.trim() || !formData.attending) {
-      toast.error("Por favor, preencha todos os campos.");
+    if (!isFormValid()) {
+      toast.error("Por favor, preencha todos os campos obrigatórios.");
       return;
-    }
-
-    // Validate companion names are required when guests > 1
-    if (formData.guests > 1 && formData.attending === "yes") {
-      const emptyCompanions = formData.companionNames.some(n => !n.trim());
-      if (emptyCompanions) {
-        toast.error("Por favor, preencha o nome de todos os acompanhantes.");
-        return;
-      }
     }
 
     setLoading(true);
     
     try {
       const sanitizedName = formData.name.trim().replace(/[<>]/g, '').substring(0, 100);
+      const sanitizedEmail = formData.email.trim().replace(/[<>]/g, '').substring(0, 255);
       const clampedGuests = Math.max(1, Math.min(20, formData.guests));
       const sanitizedCompanions = formData.companionNames
         .map(n => n.trim().replace(/[<>]/g, '').substring(0, 200))
         .filter(Boolean);
 
-      // Use edge function for server-side validation and rate limiting
       const { data, error } = await supabase.functions.invoke("submit-rsvp", {
         body: {
           wedding_id: weddingId,
           guest_name: sanitizedName,
+          guest_email: sanitizedEmail,
           attending: formData.attending === "yes" ? "confirmed" : "declined",
           guest_count: clampedGuests,
           companion_names: sanitizedCompanions,
+          phone: formData.phone.trim() || undefined,
         },
       });
 
@@ -117,6 +133,8 @@ const PublicRSVP = ({ weddingId }: PublicRSVPProps) => {
     const { name, value } = e.target;
     if (name === "guests") {
       handleGuestsChange(parseInt(value));
+    } else if (name === "phone") {
+      setFormData((prev) => ({ ...prev, phone: formatPhone(value) }));
     } else {
       setFormData((prev) => ({
         ...prev,
@@ -181,11 +199,8 @@ const PublicRSVP = ({ weddingId }: PublicRSVPProps) => {
         >
           <div className="space-y-6">
             <div>
-              <label
-                htmlFor="name"
-                className="block text-sm font-medium text-foreground mb-2"
-              >
-                Seu Nome Completo
+              <label htmlFor="name" className="block text-sm font-medium text-foreground mb-2">
+                Seu Nome Completo *
               </label>
               <input
                 type="text"
@@ -202,10 +217,47 @@ const PublicRSVP = ({ weddingId }: PublicRSVPProps) => {
             </div>
 
             <div>
-              <label
-                htmlFor="guests"
-                className="block text-sm font-medium text-foreground mb-2"
-              >
+              <label htmlFor="email" className="block text-sm font-medium text-foreground mb-2">
+                <Mail className="w-4 h-4 inline mr-2" />
+                Seu E-mail *
+              </label>
+              <input
+                type="email"
+                id="email"
+                name="email"
+                required
+                maxLength={255}
+                value={formData.email}
+                onChange={handleInputChange}
+                className="input-wedding"
+                placeholder="Digite seu e-mail"
+                disabled={loading}
+              />
+              {formData.email && !isValidEmail(formData.email) && (
+                <p className="text-xs text-destructive mt-1">Formato de e-mail inválido</p>
+              )}
+            </div>
+
+            <div>
+              <label htmlFor="phone" className="block text-sm font-medium text-foreground mb-2">
+                <Phone className="w-4 h-4 inline mr-2" />
+                Telefone (opcional)
+              </label>
+              <input
+                type="tel"
+                id="phone"
+                name="phone"
+                maxLength={15}
+                value={formData.phone}
+                onChange={handleInputChange}
+                className="input-wedding"
+                placeholder="(11) 99999-9999"
+                disabled={loading}
+              />
+            </div>
+
+            <div>
+              <label htmlFor="guests" className="block text-sm font-medium text-foreground mb-2">
                 <Users className="w-4 h-4 inline mr-2" />
                 Quantidade de Pessoas (incluindo você)
               </label>
@@ -218,7 +270,7 @@ const PublicRSVP = ({ weddingId }: PublicRSVPProps) => {
                 className="input-wedding"
                 disabled={loading}
               >
-                {[1, 2, 3, 4, 5].map((num) => (
+                {Array.from({ length: 20 }, (_, i) => i + 1).map((num) => (
                   <option key={num} value={num}>
                     {num} {num === 1 ? "pessoa" : "pessoas"}
                   </option>
@@ -250,7 +302,7 @@ const PublicRSVP = ({ weddingId }: PublicRSVPProps) => {
 
             <div>
               <label className="block text-sm font-medium text-foreground mb-3">
-                Você irá comparecer?
+                Você irá comparecer? *
               </label>
               <div className="grid grid-cols-2 gap-4">
                 <label
@@ -298,7 +350,7 @@ const PublicRSVP = ({ weddingId }: PublicRSVPProps) => {
 
             <button
               type="submit"
-              disabled={!formData.name || !formData.attending || loading || (formData.guests > 1 && formData.attending === "yes" && formData.companionNames.some(n => !n.trim()))}
+              disabled={!isFormValid() || loading}
               className="btn-wedding w-full disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? (

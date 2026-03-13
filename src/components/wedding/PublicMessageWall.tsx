@@ -27,7 +27,7 @@ const PublicMessageWall = ({ weddingId }: PublicMessageWallProps) => {
   const [loading, setLoading] = useState(false);
   const [loadingMessages, setLoadingMessages] = useState(true);
 
-  // Load messages from database
+  // Load only approved messages
   useEffect(() => {
     const loadMessages = async () => {
       if (!weddingId) {
@@ -40,6 +40,7 @@ const PublicMessageWall = ({ weddingId }: PublicMessageWallProps) => {
           .from("messages")
           .select("id, guest_name, message, created_at")
           .eq("wedding_id", weddingId)
+          .eq("show_on_wall", true)
           .order("created_at", { ascending: false })
           .limit(50);
 
@@ -100,34 +101,24 @@ const PublicMessageWall = ({ weddingId }: PublicMessageWallProps) => {
     setLoading(true);
 
     try {
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from("messages")
         .insert({
           wedding_id: weddingId,
           guest_name: name.trim().substring(0, 200),
           message: message.trim().substring(0, 1000),
-        })
-        .select("id, guest_name, message, created_at")
-        .single();
+          approved: false,
+          show_on_wall: false,
+        });
 
       if (error) {
         console.error("Message error:", error);
         throw error;
       }
 
-      if (data) {
-        const newMessage: Message = {
-          id: data.id,
-          name: data.guest_name,
-          message: data.message,
-          createdAt: "Agora",
-        };
-        setMessages([newMessage, ...messages]);
-      }
-
       setName("");
       setMessage("");
-      toast.success("Mensagem enviada com sucesso!");
+      toast.success("Mensagem enviada! Ela será exibida após aprovação dos noivos.");
     } catch (err) {
       console.error("Error submitting message:", err);
       toast.error("Erro ao enviar mensagem. Por favor, tente novamente.");
@@ -204,6 +195,9 @@ const PublicMessageWall = ({ weddingId }: PublicMessageWallProps) => {
                   disabled={loading}
                 />
               </div>
+              <p className="text-xs text-muted-foreground">
+                Sua mensagem será exibida no mural após aprovação dos noivos.
+              </p>
               <button 
                 type="submit" 
                 className="btn-wedding w-full disabled:opacity-50 disabled:cursor-not-allowed"
@@ -224,7 +218,7 @@ const PublicMessageWall = ({ weddingId }: PublicMessageWallProps) => {
             </div>
           </motion.form>
 
-          {/* Messages Grid */}
+          {/* Messages Grid - only approved */}
           <motion.div
             initial={{ opacity: 0, x: 30 }}
             animate={isInView ? { opacity: 1, x: 0 } : {}}
