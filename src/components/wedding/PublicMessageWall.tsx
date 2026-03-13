@@ -40,7 +40,7 @@ const PublicMessageWall = ({ weddingId }: PublicMessageWallProps) => {
           .from("messages")
           .select("id, guest_name, message, created_at")
           .eq("wedding_id", weddingId)
-          .eq("show_on_wall", true)
+          .eq("show_on_wall" as any, true)
           .order("created_at", { ascending: false })
           .limit(50);
 

@@ -174,8 +174,7 @@ const DashboardHistory = () => {
 
   const toggleMessageApproval = async (messageId: string, approve: boolean) => {
     try {
-      const { error } = await supabase
-        .from("messages")
+      const { error } = await (supabase.from("messages") as any)
         .update({ approved: approve, show_on_wall: approve })
         .eq("id", messageId);
 
