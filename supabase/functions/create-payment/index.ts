@@ -149,6 +149,7 @@ serve(async (req) => {
         guest_email: sanitizedGuestEmail || null,
         total_amount: total,
         status: "pending",
+        gift_message: giftMessage || null,
       })
       .select()
       .single();
