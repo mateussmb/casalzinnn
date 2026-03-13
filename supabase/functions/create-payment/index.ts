@@ -22,6 +22,7 @@ const CreatePaymentSchema = z.object({
   items: z.array(CartItemSchema).min(1).max(50),
   guestName: z.string().min(1).max(100).trim(),
   guestEmail: z.string().email().max(255).optional().or(z.literal("")).transform((val) => val || undefined),
+  giftMessage: z.string().max(300).optional().transform((val) => val?.trim() || undefined),
 });
 
 const sanitizeString = (str: string): string => {
