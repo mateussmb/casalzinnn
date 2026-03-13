@@ -42,7 +42,7 @@ serve(async (req) => {
     await supabase.from("rate_limit_log").insert({ identifier: ip, action: "rsvp" });
 
     const body = await req.json();
-    const { wedding_id, guest_name, guest_email, attending, guest_count, companion_names } = body;
+    const { wedding_id, guest_name, guest_email, attending, guest_count, companion_names, phone } = body;
 
     if (!wedding_id || !guest_name || attending === undefined || attending === null || attending === "") {
       return new Response(
@@ -55,6 +55,9 @@ serve(async (req) => {
     const sanitizedName = String(guest_name).trim().replace(/[<>]/g, "").substring(0, 100);
     const sanitizedEmail = guest_email
       ? String(guest_email).trim().replace(/[<>]/g, "").substring(0, 200)
+      : null;
+    const sanitizedPhone = phone
+      ? String(phone).trim().replace(/[<>]/g, "").substring(0, 20)
       : null;
     const clampedCount = Math.max(1, Math.min(20, parseInt(guest_count) || 1));
 
@@ -103,6 +106,7 @@ serve(async (req) => {
       guests_count: clampedCount,
       attendance: attendanceValue,
       companion_names: sanitizedCompanions,
+      phone: sanitizedPhone,
     });
 
     if (insertError) {

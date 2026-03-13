@@ -22,6 +22,7 @@ const CreatePaymentSchema = z.object({
   items: z.array(CartItemSchema).min(1).max(50),
   guestName: z.string().min(1).max(100).trim(),
   guestEmail: z.string().email().max(255).optional().or(z.literal("")).transform((val) => val || undefined),
+  giftMessage: z.string().max(300).optional().transform((val) => val?.trim() || undefined),
 });
 
 const sanitizeString = (str: string): string => {
@@ -67,7 +68,7 @@ serve(async (req) => {
       );
     }
 
-    const { weddingId, items, guestName, guestEmail } = validationResult.data;
+    const { weddingId, items, guestName, guestEmail, giftMessage } = validationResult.data;
     const sanitizedGuestName = sanitizeString(guestName);
     const sanitizedGuestEmail = guestEmail ? sanitizeString(guestEmail) : undefined;
 
@@ -148,6 +149,7 @@ serve(async (req) => {
         guest_email: sanitizedGuestEmail || null,
         total_amount: total,
         status: "pending",
+        gift_message: giftMessage || null,
       })
       .select()
       .single();
