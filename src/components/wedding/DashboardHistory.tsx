@@ -159,9 +159,9 @@ const DashboardHistory = () => {
           setOrders(ordersWithItems);
         }
 
-        if (rsvpsRes.data) setRsvps(rsvpsRes.data as RsvpResponse[]);
-        if (messagesRes.data) setMessages(messagesRes.data as Message[]);
-        if (abandonmentsRes.data) setAbandonments(abandonmentsRes.data as CheckoutAbandonment[]);
+        if (rsvpsRes.data) setRsvps(rsvpsRes.data as unknown as RsvpResponse[]);
+        if (messagesRes.data) setMessages(messagesRes.data as unknown as Message[]);
+        if (abandonmentsRes.data) setAbandonments(abandonmentsRes.data as unknown as CheckoutAbandonment[]);
       } catch (error) {
         console.error("Error loading history:", error);
       } finally {
