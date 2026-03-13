@@ -139,8 +139,7 @@ const DashboardHistory = () => {
             .select("*")
             .eq("wedding_id", wedding.id)
             .order("created_at", { ascending: false }),
-          supabase
-            .from("checkout_abandonments")
+          (supabase.from("checkout_abandonments" as any) as any)
             .select("*")
             .eq("wedding_id", wedding.id)
             .order("created_at", { ascending: false }),
