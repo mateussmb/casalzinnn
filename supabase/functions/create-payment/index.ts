@@ -68,7 +68,7 @@ serve(async (req) => {
       );
     }
 
-    const { weddingId, items, guestName, guestEmail } = validationResult.data;
+    const { weddingId, items, guestName, guestEmail, giftMessage } = validationResult.data;
     const sanitizedGuestName = sanitizeString(guestName);
     const sanitizedGuestEmail = guestEmail ? sanitizeString(guestEmail) : undefined;
 
