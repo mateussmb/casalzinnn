@@ -101,14 +101,12 @@ const PublicMessageWall = ({ weddingId }: PublicMessageWallProps) => {
     setLoading(true);
 
     try {
-      const { error } = await (supabase
-        .from("messages") as any)
+      const { error } = await supabase
+        .from("messages")
         .insert({
           wedding_id: weddingId,
           guest_name: name.trim().substring(0, 200),
           message: message.trim().substring(0, 1000),
-          approved: false,
-          show_on_wall: false,
         });
 
       if (error) {
