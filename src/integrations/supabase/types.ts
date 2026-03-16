@@ -14,6 +14,58 @@ export type Database = {
   }
   public: {
     Tables: {
+      checkout_abandonments: {
+        Row: {
+          created_at: string | null
+          gift_ids: Json | null
+          guest_email: string | null
+          guest_name: string
+          guest_phone: string | null
+          id: string
+          wedding_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          gift_ids?: Json | null
+          guest_email?: string | null
+          guest_name: string
+          guest_phone?: string | null
+          id?: string
+          wedding_id: string
+        }
+        Update: {
+          created_at?: string | null
+          gift_ids?: Json | null
+          guest_email?: string | null
+          guest_name?: string
+          guest_phone?: string | null
+          id?: string
+          wedding_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "checkout_abandonments_wedding_id_fkey"
+            columns: ["wedding_id"]
+            isOneToOne: false
+            referencedRelation: "public_weddings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "checkout_abandonments_wedding_id_fkey"
+            columns: ["wedding_id"]
+            isOneToOne: false
+            referencedRelation: "wedding_config_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "checkout_abandonments_wedding_id_fkey"
+            columns: ["wedding_id"]
+            isOneToOne: false
+            referencedRelation: "weddings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       gallery_images: {
         Row: {
           caption: string | null
@@ -120,24 +172,30 @@ export type Database = {
       }
       messages: {
         Row: {
+          approved: boolean
           created_at: string
           guest_name: string
           id: string
           message: string
+          show_on_wall: boolean
           wedding_id: string
         }
         Insert: {
+          approved?: boolean
           created_at?: string
           guest_name: string
           id?: string
           message: string
+          show_on_wall?: boolean
           wedding_id: string
         }
         Update: {
+          approved?: boolean
           created_at?: string
           guest_name?: string
           id?: string
           message?: string
+          show_on_wall?: boolean
           wedding_id?: string
         }
         Relationships: [
@@ -212,6 +270,7 @@ export type Database = {
       orders: {
         Row: {
           created_at: string
+          gift_message: string | null
           guest_email: string | null
           guest_name: string
           id: string
@@ -224,6 +283,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          gift_message?: string | null
           guest_email?: string | null
           guest_name: string
           id?: string
@@ -236,6 +296,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          gift_message?: string | null
           guest_email?: string | null
           guest_name?: string
           id?: string
@@ -329,6 +390,7 @@ export type Database = {
           guests_count: number
           id: string
           message: string | null
+          phone: string | null
           wedding_id: string
         }
         Insert: {
@@ -341,6 +403,7 @@ export type Database = {
           guests_count?: number
           id?: string
           message?: string | null
+          phone?: string | null
           wedding_id: string
         }
         Update: {
@@ -353,6 +416,7 @@ export type Database = {
           guests_count?: number
           id?: string
           message?: string | null
+          phone?: string | null
           wedding_id?: string
         }
         Relationships: [
