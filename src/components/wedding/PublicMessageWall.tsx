@@ -194,7 +194,7 @@ const PublicMessageWall = ({ weddingId }: PublicMessageWallProps) => {
                 />
               </div>
               <p className="text-xs text-muted-foreground">
-                Sua mensagem será exibida no mural após aprovação dos noivos.
+                Sua mensagem será exibida automaticamente no mural.
               </p>
               <button 
                 type="submit" 
