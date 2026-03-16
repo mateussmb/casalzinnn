@@ -1,18 +1,47 @@
 import { motion } from "framer-motion";
 import { useInView } from "framer-motion";
-import { useRef } from "react";
-import { Calendar, Clock, MapPin, Church, PartyPopper, MapPinned } from "lucide-react";
+import { useRef, useState } from "react";
+import { Calendar, Clock, MapPin, Church, PartyPopper, MapPinned, Loader2 } from "lucide-react";
 import { useWedding } from "@/contexts/WeddingContext";
+
+const MapEmbed = ({ query, title }: { query: string; title: string }) => {
+  const [loaded, setLoaded] = useState(false);
+
+  if (!query || query.trim() === ", " || query.trim() === ",") return null;
+
+  return (
+    <div className="rounded-lg overflow-hidden h-48 md:h-64 bg-muted relative">
+      {!loaded && (
+        <div className="absolute inset-0 flex items-center justify-center">
+          <Loader2 className="w-6 h-6 animate-spin text-gold" />
+        </div>
+      )}
+      <iframe
+        src={`https://www.google.com/maps/embed/v1/place?key=AIzaSyBFw0Qbyq9zTFTd-tUY6dZWTgaQzuU17R8&q=${encodeURIComponent(query)}&zoom=15`}
+        width="100%"
+        height="100%"
+        style={{ border: 0 }}
+        allowFullScreen
+        loading="lazy"
+        referrerPolicy="no-referrer-when-downgrade"
+        title={title}
+        onLoad={() => setLoaded(true)}
+      />
+    </div>
+  );
+};
 
 const PublicWeddingInfo = () => {
   const ref = useRef(null);
   const isInView = useInView(ref, { once: true, margin: "-100px" });
   const { config } = useWedding();
 
-  // Check if ceremony and reception are at the same location
   const isSameLocation = config.sameLocation || 
     (config.ceremonyLocation === config.receptionLocation && 
      config.ceremonyAddress === config.receptionAddress);
+
+  const ceremonyQuery = [config.ceremonyLocation, config.ceremonyAddress].filter(Boolean).join(', ');
+  const receptionQuery = [config.receptionLocation, config.receptionAddress].filter(Boolean).join(', ');
 
   return (
     <section id="wedding-info" ref={ref} className="py-24 sm:py-32 bg-background">
@@ -29,7 +58,6 @@ const PublicWeddingInfo = () => {
         </motion.div>
 
         {isSameLocation ? (
-          /* Single Venue - Ceremony and Reception at same place */
           <motion.div
             initial={{ opacity: 0, y: 30 }}
             animate={isInView ? { opacity: 1, y: 0 } : {}}
@@ -79,24 +107,11 @@ const PublicWeddingInfo = () => {
                 </div>
               </div>
 
-              <div className="rounded-lg overflow-hidden h-64 bg-muted">
-                <iframe
-                  src={`https://www.google.com/maps?q=${encodeURIComponent(config.ceremonyLocation + ', ' + config.ceremonyAddress)}&z=15&output=embed`}
-                  width="100%"
-                  height="100%"
-                  style={{ border: 0 }}
-                  allowFullScreen
-                  loading="lazy"
-                  referrerPolicy="no-referrer-when-downgrade"
-                  title="Mapa do Evento"
-                />
-              </div>
+              <MapEmbed query={ceremonyQuery} title="Mapa do Evento" />
             </div>
           </motion.div>
         ) : (
-          /* Separate Venues - Original two-column layout */
           <div className="grid md:grid-cols-2 gap-8">
-            {/* Ceremony */}
             <motion.div
               initial={{ opacity: 0, y: 30 }}
               animate={isInView ? { opacity: 1, y: 0 } : {}}
@@ -128,21 +143,9 @@ const PublicWeddingInfo = () => {
                 </div>
               </div>
 
-              <div className="rounded-lg overflow-hidden h-48 bg-muted">
-                <iframe
-                  src={`https://www.google.com/maps?q=${encodeURIComponent(config.ceremonyLocation + ', ' + config.ceremonyAddress)}&z=15&output=embed`}
-                  width="100%"
-                  height="100%"
-                  style={{ border: 0 }}
-                  allowFullScreen
-                  loading="lazy"
-                  referrerPolicy="no-referrer-when-downgrade"
-                  title="Mapa - Cerimônia"
-                />
-              </div>
+              <MapEmbed query={ceremonyQuery} title="Mapa - Cerimônia" />
             </motion.div>
 
-            {/* Reception */}
             <motion.div
               initial={{ opacity: 0, y: 30 }}
               animate={isInView ? { opacity: 1, y: 0 } : {}}
@@ -174,18 +177,7 @@ const PublicWeddingInfo = () => {
                 </div>
               </div>
 
-              <div className="rounded-lg overflow-hidden h-48 bg-muted">
-                <iframe
-                  src={`https://www.google.com/maps?q=${encodeURIComponent(config.receptionLocation + ', ' + config.receptionAddress)}&z=15&output=embed`}
-                  width="100%"
-                  height="100%"
-                  style={{ border: 0 }}
-                  allowFullScreen
-                  loading="lazy"
-                  referrerPolicy="no-referrer-when-downgrade"
-                  title="Mapa - Recepção"
-                />
-              </div>
+              <MapEmbed query={receptionQuery} title="Mapa - Recepção" />
             </motion.div>
           </div>
         )}
