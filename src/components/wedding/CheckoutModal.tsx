@@ -163,7 +163,7 @@ const CheckoutModal = ({
     try {
       setAbandonmentSaved(true);
       const giftIds = items.map(item => ({ id: item.gift.id, name: item.gift.name, quantity: item.quantity }));
-      await (supabase.from("checkout_abandonments" as any) as any).insert({
+      await supabase.from("checkout_abandonments" as any).insert({
         wedding_id: weddingId,
         guest_name: guestName.trim().substring(0, 100),
         guest_email: guestEmail.trim().substring(0, 255),
