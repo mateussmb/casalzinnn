@@ -36,9 +36,9 @@ const PublicMessageWall = ({ weddingId }: PublicMessageWallProps) => {
       }
 
       try {
-        const { data, error } = await (supabase
+      const { data, error } = await supabase
           .from("messages")
-          .select("id, guest_name, message, created_at") as any)
+          .select("id, guest_name, message, created_at, show_on_wall")
           .eq("wedding_id", weddingId)
           .eq("show_on_wall", true)
           .order("created_at", { ascending: false })
@@ -101,14 +101,12 @@ const PublicMessageWall = ({ weddingId }: PublicMessageWallProps) => {
     setLoading(true);
 
     try {
-      const { error } = await (supabase
-        .from("messages") as any)
+      const { error } = await supabase
+        .from("messages")
         .insert({
           wedding_id: weddingId,
           guest_name: name.trim().substring(0, 200),
           message: message.trim().substring(0, 1000),
-          approved: false,
-          show_on_wall: false,
         });
 
       if (error) {
@@ -118,7 +116,7 @@ const PublicMessageWall = ({ weddingId }: PublicMessageWallProps) => {
 
       setName("");
       setMessage("");
-      toast.success("Mensagem enviada! Ela será exibida após aprovação dos noivos.");
+      toast.success("Mensagem enviada com sucesso!");
     } catch (err) {
       console.error("Error submitting message:", err);
       toast.error("Erro ao enviar mensagem. Por favor, tente novamente.");
@@ -196,7 +194,7 @@ const PublicMessageWall = ({ weddingId }: PublicMessageWallProps) => {
                 />
               </div>
               <p className="text-xs text-muted-foreground">
-                Sua mensagem será exibida no mural após aprovação dos noivos.
+                Sua mensagem será exibida automaticamente no mural.
               </p>
               <button 
                 type="submit" 

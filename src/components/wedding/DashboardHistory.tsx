@@ -174,8 +174,9 @@ const DashboardHistory = () => {
 
   const toggleMessageApproval = async (messageId: string, approve: boolean) => {
     try {
-      const { error } = await (supabase.from("messages") as any)
-        .update({ approved: approve, show_on_wall: approve })
+      const { error } = await supabase
+        .from("messages")
+        .update({ show_on_wall: approve } as any)
         .eq("id", messageId);
 
       if (error) throw error;
@@ -183,7 +184,7 @@ const DashboardHistory = () => {
       setMessages(prev =>
         prev.map(m => m.id === messageId ? { ...m, approved: approve, show_on_wall: approve } : m)
       );
-      toast.success(approve ? "Mensagem aprovada e publicada no mural!" : "Mensagem removida do mural.");
+      toast.success(approve ? "Mensagem visível no mural!" : "Mensagem ocultada do mural.");
     } catch (err) {
       console.error("Error updating message:", err);
       toast.error("Erro ao atualizar mensagem");

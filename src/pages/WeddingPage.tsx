@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useParams, Link } from "react-router-dom";
 import { Heart, Loader2, ArrowLeft } from "lucide-react";
 import { WeddingProvider, WeddingConfig } from "@/contexts/WeddingContext";
@@ -73,7 +73,6 @@ const WeddingContent = ({
   weddingId: string;
   mercadoPagoPublicKey: string | null;
 }) => {
-  // Convert database format to config format for the provider initial state
   const initialConfig: WeddingConfig = {
     coupleName: weddingData.couple_name,
     weddingDate: weddingData.wedding_date || "",
@@ -133,11 +132,27 @@ const WeddingContent = ({
   );
 };
 
+// Preload critical images before showing content
+const preloadImages = (urls: string[]): Promise<void[]> => {
+  return Promise.all(
+    urls.filter(Boolean).map(
+      (url) =>
+        new Promise<void>((resolve) => {
+          const img = new Image();
+          img.onload = () => resolve();
+          img.onerror = () => resolve(); // Don't block on error
+          img.src = url;
+        })
+    )
+  );
+};
+
 const WeddingPage = () => {
   const { slug } = useParams<{ slug: string }>();
   const [wedding, setWedding] = useState<WeddingData | null>(null);
   const [gifts, setGifts] = useState<GiftData[]>([]);
   const [loading, setLoading] = useState(true);
+  const [imagesReady, setImagesReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -148,7 +163,6 @@ const WeddingPage = () => {
         return;
       }
 
-      // Check if this looks like a valid wedding slug (not a system route)
       const systemRoutes = ['login', 'register', 'dashboard', 'preview', 'demo'];
       if (systemRoutes.includes(slug)) {
         setError("Página não encontrada");
@@ -156,7 +170,6 @@ const WeddingPage = () => {
         return;
       }
 
-      // Validate slug format (only lowercase letters, numbers, and hyphens)
       if (!/^[a-z0-9-]+$/.test(slug)) {
         setError("URL inválida");
         setLoading(false);
@@ -164,7 +177,6 @@ const WeddingPage = () => {
       }
 
       try {
-        // Use edge function to fetch public wedding data securely
         const baseUrl = import.meta.env.VITE_SUPABASE_URL;
         const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
         
@@ -186,9 +198,22 @@ const WeddingPage = () => {
         }
 
         const publicData = await fetchResponse.json();
-        setWedding(publicData.wedding);
+        const weddingData = publicData.wedding as WeddingData;
+        setWedding(weddingData);
         setGifts(publicData.gifts || []);
 
+        // Preload critical images (hero + story photos)
+        const criticalImages = [
+          weddingData.hero_image_url,
+          weddingData.story_photo_1,
+          weddingData.story_photo_2,
+          weddingData.story_photo_3,
+        ].filter(Boolean) as string[];
+
+        if (criticalImages.length > 0) {
+          await preloadImages(criticalImages);
+        }
+        setImagesReady(true);
       } catch (err) {
         console.error('Error fetching wedding:', err);
         setError("Erro ao carregar página");
@@ -200,7 +225,7 @@ const WeddingPage = () => {
     fetchWedding();
   }, [slug]);
 
-  if (loading) {
+  if (loading || (!imagesReady && !error)) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
