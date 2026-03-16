@@ -116,7 +116,7 @@ const PublicMessageWall = ({ weddingId }: PublicMessageWallProps) => {
 
       setName("");
       setMessage("");
-      toast.success("Mensagem enviada! Ela será exibida após aprovação dos noivos.");
+      toast.success("Mensagem enviada com sucesso!");
     } catch (err) {
       console.error("Error submitting message:", err);
       toast.error("Erro ao enviar mensagem. Por favor, tente novamente.");
