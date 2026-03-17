@@ -120,7 +120,7 @@ const MessageWall = () => {
           className="text-center mb-16"
         >
           <p className="text-gold uppercase tracking-[0.2em] text-sm mb-4">Mensagens</p>
-          <h2 className="section-title">Mural de Recados</h2>
+          <h2 className="section-title">Central de Recados</h2>
           <div className="gold-divider mt-6" />
           <p className="section-subtitle max-w-2xl mx-auto">
             Deixe uma mensagem carinhosa para os noivos
