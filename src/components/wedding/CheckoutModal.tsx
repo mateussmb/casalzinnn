@@ -931,16 +931,6 @@ const CheckoutModal = ({
                     Visualizar Boleto
                   </Button>
 
-                  {boletoData.barcode && (
-                    <div className="mt-4">
-                      <p className="text-xs text-muted-foreground mb-2">Código de barras:</p>
-                      <p className="font-mono text-xs bg-background p-2 rounded break-all">
-                        {boletoData.barcode}
-                      </p>
-                    </div>
-                  )}
-                </div>
-
                 <div className="text-sm text-muted-foreground">
                   <p>Valor: <span className="font-medium text-foreground">R$ {getTotalPrice().toFixed(2).replace(".", ",")}</span></p>
                   <p className="mt-2">O boleto vence em 3 dias úteis.</p>
