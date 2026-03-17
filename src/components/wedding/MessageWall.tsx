@@ -2,9 +2,15 @@ import { motion } from "framer-motion";
 import { useInView } from "framer-motion";
 import { useRef, useState, useEffect } from "react";
 import { Send, MessageCircle, Heart, Loader2 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { createClient } from '@supabase/supabase-js';
 import { useWedding } from "@/contexts/WeddingContext";
 import { toast } from "sonner";
+
+// Cliente público explícito com anon key — garante funcionamento em aba anônima
+const supabasePublic = createClient(
+  import.meta.env.VITE_SUPABASE_URL,
+  import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY
+);
 
 interface Message {
   id: string;
@@ -17,112 +23,88 @@ const MessageWall = () => {
   const ref = useRef(null);
   const isInView = useInView(ref, { once: true, margin: "-100px" });
   const { wedding } = useWedding();
-
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [message, setMessage] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
-  const [loadingMessages, setLoadingMessages] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
 
-  const weddingId = wedding?.id;
-
-  // Load approved messages from database
   useEffect(() => {
-    if (!weddingId) return;
+    if (!wedding?.id) return;
 
     const fetchMessages = async () => {
-      setLoadingMessages(true);
-      try {
-        const { data, error } = await supabase
-          .from("messages")
-          .select("id, guest_name, content, created_at")
-          .eq("wedding_id", weddingId)
-          .eq("approved", true)
-          .eq("show_on_wall", true)
-          .order("created_at", { ascending: false })
-          .limit(50);
+      setLoading(true);
+      const { data, error } = await supabasePublic
+        .from("messages")
+        .select("id, guest_name, content, created_at")
+        .eq("wedding_id", wedding.id)
+        .eq("approved", true)
+        .eq("show_on_wall", true)
+        .order("created_at", { ascending: false })
+        .limit(50);
 
-        if (error) throw error;
-        setMessages(data || []);
-      } catch (err) {
-        console.error("Error fetching messages:", err);
-      } finally {
-        setLoadingMessages(false);
-      }
+      if (!error && data) setMessages(data);
+      setLoading(false);
     };
 
     fetchMessages();
-  }, [weddingId]);
+  }, [wedding?.id]);
+
+  const formatDate = (dateStr: string) => {
+    try {
+      const date = new Date(dateStr);
+      const now = new Date();
+      const diffDays = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
+      if (diffDays === 0) return "Hoje";
+      if (diffDays === 1) return "Ontem";
+      if (diffDays < 7) return `${diffDays} dias atrás`;
+      return date.toLocaleDateString("pt-BR");
+    } catch { return ""; }
+  };
 
   const isValidEmail = (val: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val);
 
-  const formatRelativeTime = (dateStr: string) => {
-    const date = new Date(dateStr);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffMin = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMin / 60);
-    const diffDays = Math.floor(diffHours / 24);
-
-    if (diffMin < 1) return "Agora";
-    if (diffMin < 60) return `${diffMin} min atrás`;
-    if (diffHours < 24) return `${diffHours}h atrás`;
-    if (diffDays === 1) return "Ontem";
-    return `${diffDays} dias atrás`;
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    if (!name.trim() || !message.trim() || !email.trim()) {
-      toast.error("Preencha todos os campos obrigatórios");
+    if (!name.trim() || !message.trim()) return;
+    if (!email.trim() || !isValidEmail(email.trim())) {
+      toast.error("Por favor, informe um e-mail válido");
       return;
     }
-
-    if (!isValidEmail(email.trim())) {
-      toast.error("E-mail inválido");
-      return;
-    }
-
-    if (!weddingId) {
+    if (!wedding?.id) {
       toast.error("Erro ao identificar o casamento");
       return;
     }
 
-    setLoading(true);
-
+    setSubmitting(true);
     try {
-      const { error } = await supabase.from("messages").insert({
-        wedding_id: weddingId,
-        guest_name: name.trim().substring(0, 100),
-        guest_email: email.trim().substring(0, 200),
-        content: message.trim().substring(0, 500),
-        approved: true,      // mensagens do mural são aprovadas por padrão
-        show_on_wall: true,  // e aparecem no mural por padrão
-        source: "wall",      // diferencia de mensagens do carrinho
-      });
+      const { data, error } = await supabasePublic
+        .from("messages")
+        .insert({
+          wedding_id: wedding.id,
+          guest_name: name.trim().substring(0, 100),
+          guest_email: email.trim().substring(0, 200),
+          content: message.trim().substring(0, 500),
+          // approved e show_on_wall usam o DEFAULT do banco (true)
+          // não passamos explicitamente para não conflitar com RLS
+        })
+        .select("id, guest_name, content, created_at")
+        .single();
 
       if (error) throw error;
 
-      // Add to local state immediately for instant feedback
-      const newMessage: Message = {
-        id: Date.now().toString(),
-        guest_name: name.trim(),
-        content: message.trim(),
-        created_at: new Date().toISOString(),
-      };
+      if (data) setMessages((prev) => [data, ...prev]);
 
-      setMessages((prev) => [newMessage, ...prev]);
       setName("");
       setEmail("");
       setMessage("");
       toast.success("Mensagem enviada com sucesso!");
-    } catch (err) {
-      console.error("Error sending message:", err);
+    } catch (err: unknown) {
+      console.error("Error submitting message:", err);
       toast.error("Erro ao enviar mensagem. Por favor, tente novamente.");
     } finally {
-      setLoading(false);
+      setSubmitting(false);
     }
   };
 
@@ -144,7 +126,7 @@ const MessageWall = () => {
         </motion.div>
 
         <div className="grid lg:grid-cols-2 gap-12">
-          {/* Form */}
+          {/* Formulário */}
           <motion.form
             initial={{ opacity: 0, x: -30 }}
             animate={isInView ? { opacity: 1, x: 0 } : {}}
@@ -203,16 +185,16 @@ const MessageWall = () => {
                   required
                   maxLength={500}
                 />
-                <p className="text-xs text-muted-foreground text-right mt-1">
+                <p className="text-xs text-muted-foreground mt-1 text-right">
                   {message.length}/500
                 </p>
               </div>
               <button
                 type="submit"
-                className="btn-wedding w-full"
-                disabled={loading || !name.trim() || !email.trim() || !message.trim() || !isValidEmail(email)}
+                disabled={submitting || !name.trim() || !message.trim() || !isValidEmail(email)}
+                className="btn-wedding w-full disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {loading ? (
+                {submitting ? (
                   <>
                     <Loader2 className="mr-2 w-5 h-5 animate-spin" />
                     Enviando...
@@ -227,23 +209,21 @@ const MessageWall = () => {
             </div>
           </motion.form>
 
-          {/* Messages Grid */}
+          {/* Lista de mensagens */}
           <motion.div
             initial={{ opacity: 0, x: 30 }}
             animate={isInView ? { opacity: 1, x: 0 } : {}}
             transition={{ duration: 0.8, delay: 0.3 }}
             className="space-y-4 max-h-[500px] overflow-y-auto pr-2"
           >
-            {loadingMessages ? (
+            {loading ? (
               <div className="flex items-center justify-center py-12">
                 <Loader2 className="w-8 h-8 animate-spin text-gold" />
               </div>
             ) : messages.length === 0 ? (
-              <div className="text-center py-12 card-wedding">
-                <Heart className="w-12 h-12 text-gold/30 mx-auto mb-3" />
-                <p className="text-muted-foreground">
-                  Seja o primeiro a deixar uma mensagem!
-                </p>
+              <div className="text-center py-12 text-muted-foreground">
+                <MessageCircle className="w-10 h-10 mx-auto mb-3 opacity-40" />
+                <p>Seja o primeiro a deixar uma mensagem!</p>
               </div>
             ) : (
               messages.map((msg, index) => (
@@ -251,24 +231,22 @@ const MessageWall = () => {
                   key={msg.id}
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.5, delay: index * 0.1 }}
+                  transition={{ duration: 0.5, delay: index * 0.05 }}
                   className="card-wedding"
                 >
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex items-center gap-2">
-                      <div className="w-10 h-10 rounded-full bg-gold/20 flex items-center justify-center flex-shrink-0">
+                      <div className="w-10 h-10 rounded-full bg-gold/20 flex items-center justify-center">
                         <span className="text-gold font-serif text-lg">
                           {msg.guest_name.charAt(0).toUpperCase()}
                         </span>
                       </div>
                       <div>
                         <h4 className="font-medium text-foreground">{msg.guest_name}</h4>
-                        <p className="text-xs text-muted-foreground">
-                          {formatRelativeTime(msg.created_at)}
-                        </p>
+                        <p className="text-xs text-muted-foreground">{formatDate(msg.created_at)}</p>
                       </div>
                     </div>
-                    <Heart className="w-4 h-4 text-rose flex-shrink-0" />
+                    <Heart className="w-4 h-4 text-rose" />
                   </div>
                   <p className="text-muted-foreground leading-relaxed">
                     "{msg.content}"
