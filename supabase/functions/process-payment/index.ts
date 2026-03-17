@@ -45,16 +45,10 @@ async function decryptValue(encryptedHex: string, ivHex: string, keyHex: string)
   const iv = hexToBytes(ivHex);
   const cipherBytes = hexToBytes(encryptedHex);
   const cryptoKey = await crypto.subtle.importKey(
-    "raw",
-    keyBytes,
-    { name: "AES-GCM" },
-    false,
-    ["decrypt"]
+    "raw", keyBytes, { name: "AES-GCM" }, false, ["decrypt"]
   );
   const plainBuffer = await crypto.subtle.decrypt(
-    { name: "AES-GCM", iv },
-    cryptoKey,
-    cipherBytes
+    { name: "AES-GCM", iv }, cryptoKey, cipherBytes
   );
   return new TextDecoder().decode(plainBuffer);
 }
@@ -95,7 +89,6 @@ serve(async (req) => {
 
     await supabase.from("rate_limit_log").insert({ identifier: ip, action: "payment" });
 
-    // Validate input
     const rawBody = await req.json();
     const validationResult = PaymentRequestSchema.safeParse(rawBody);
 
@@ -120,7 +113,6 @@ serve(async (req) => {
       payerCity, payerState,
     } = validationResult.data;
 
-    // Fetch order and validate
     const { data: order, error: orderError } = await supabase
       .from("orders")
       .select("id, wedding_id, total_amount, status")
@@ -150,7 +142,6 @@ serve(async (req) => {
       );
     }
 
-    // Fetch wedding encrypted credentials
     const { data: wedding, error: weddingError } = await supabase
       .from("weddings")
       .select("mp_access_token_encrypted, mp_access_token_iv, mercado_pago_access_token, couple_name")
@@ -164,7 +155,6 @@ serve(async (req) => {
       );
     }
 
-    // Decrypt access token (prefer encrypted, fallback to plaintext during migration)
     let accessToken: string;
     if (wedding.mp_access_token_encrypted && wedding.mp_access_token_iv) {
       accessToken = await decryptValue(
@@ -173,7 +163,6 @@ serve(async (req) => {
         encryptionKey
       );
     } else if (wedding.mercado_pago_access_token) {
-      // Fallback for tokens not yet encrypted
       accessToken = wedding.mercado_pago_access_token;
     } else {
       return new Response(
@@ -182,21 +171,17 @@ serve(async (req) => {
       );
     }
 
-    // Prepare names
     const sanitizedPayerName = sanitizeString(payerName);
     const nameParts = sanitizedPayerName.split(" ").filter(Boolean);
     const firstName = payerFirstName ? sanitizeString(payerFirstName) : nameParts[0] || "Convidado";
     const lastName = payerLastName ? sanitizeString(payerLastName) : nameParts.slice(1).join(" ") || "Anônimo";
 
-    // Map payment method
     let actualPaymentMethod = paymentMethodId;
     if (paymentMethodId === "bank_transfer") actualPaymentMethod = "pix";
     else if (paymentMethodId === "ticket") actualPaymentMethod = "bolbradesco";
 
-    const isCreditCard = !!token && !["pix", "bank_transfer", "bolbradesco", "ticket"].includes(paymentMethodId);
     const isBoleto = ["bolbradesco", "ticket"].includes(paymentMethodId) || actualPaymentMethod === "bolbradesco";
 
-    // Build payer
     const payerObj: Record<string, unknown> = {
       email: payerEmail,
       first_name: firstName,
@@ -229,7 +214,6 @@ serve(async (req) => {
       };
     }
 
-    // Build payment data
     const paymentData: Record<string, unknown> = {
       transaction_amount: serverAmount,
       payment_method_id: actualPaymentMethod,
@@ -245,7 +229,6 @@ serve(async (req) => {
 
     console.log("Processing payment:", { orderId, method: actualPaymentMethod, amount: serverAmount });
 
-    // Call Mercado Pago API
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 90000);
 
@@ -312,13 +295,14 @@ serve(async (req) => {
       .update({ status, mercado_pago_payment_id: mpData.id?.toString() })
       .eq("id", orderId);
 
-    // Build response (NEVER include access token)
+    // Build response — NEVER include access token
     const response: Record<string, unknown> = {
       id: mpData.id,
       status: mpData.status,
       status_detail: mpData.status_detail,
     };
 
+    // PIX
     if ((actualPaymentMethod === "pix" || paymentMethodId === "bank_transfer") && mpData.point_of_interaction?.transaction_data) {
       response.pix = {
         qr_code: mpData.point_of_interaction.transaction_data.qr_code,
@@ -327,10 +311,25 @@ serve(async (req) => {
       };
     }
 
+    // BOLETO — usa linha digitável formatada, nunca o código numérico bruto
     if (isBoleto) {
-      const ticketUrl = mpData.transaction_details?.external_resource_url || mpData.point_of_interaction?.transaction_data?.ticket_url;
+      const ticketUrl =
+        mpData.transaction_details?.external_resource_url ||
+        mpData.point_of_interaction?.transaction_data?.ticket_url;
+
+      // Linha digitável formatada (ex: 37690.00104 00105.671002 00113.841696 1 13910000003990)
+      // O Mercado Pago retorna em transaction_details.barcode.content (linha digitável)
+      // e também em barcode.content (código numérico sem formatação)
+      const digitableLine =
+        mpData.transaction_details?.barcode?.content ||  // linha digitável formatada
+        mpData.barcode?.content ||                       // fallback código numérico
+        null;
+
       if (ticketUrl) {
-        response.boleto = { ticket_url: ticketUrl, barcode: mpData.barcode?.content };
+        response.boleto = {
+          ticket_url: ticketUrl,
+          barcode: digitableLine,
+        };
       }
     }
 
