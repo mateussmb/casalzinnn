@@ -100,8 +100,6 @@ const PublicMessageWall = ({ weddingId }: PublicMessageWallProps) => {
       };
 
       // Colunas com nomes especiais precisam ser referenciadas como chave de objeto
-      insertData["guest_email"] = email.trim().substring(0, 200);
-      insertData["extension"] = "wall";
 
       const { data, error } = await supabasePublic
         .from("messages")
