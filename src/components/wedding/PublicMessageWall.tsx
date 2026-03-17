@@ -95,8 +95,7 @@ const PublicMessageWall = ({ weddingId }: PublicMessageWallProps) => {
         message: message.trim().substring(0, 1000),
         topic: "mural",
         approved: true,
-        show_on_wall: true,
-        private: false,
+        show_on_wall: true
       };
 
       // Colunas com nomes especiais precisam ser referenciadas como chave de objeto
