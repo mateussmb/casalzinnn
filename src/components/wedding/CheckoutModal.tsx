@@ -931,6 +931,8 @@ const CheckoutModal = ({
                     Visualizar Boleto
                   </Button>
 
+                </div>
+
                 <div className="text-sm text-muted-foreground">
                   <p>Valor: <span className="font-medium text-foreground">R$ {getTotalPrice().toFixed(2).replace(".", ",")}</span></p>
                   <p className="mt-2">O boleto vence em 3 dias úteis.</p>
