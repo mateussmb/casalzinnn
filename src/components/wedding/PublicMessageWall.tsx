@@ -3,8 +3,14 @@ import { useInView } from "framer-motion";
 import { useRef, useState, useEffect } from "react";
 import { Send, MessageCircle, Heart, Loader2 } from "lucide-react";
 import { useWedding } from "@/contexts/WeddingContext";
-import { supabase } from "@/integrations/supabase/client";
+import { createClient } from '@supabase/supabase-js';
 import { toast } from "sonner";
+
+// Cliente público sem sessão — funciona em aba anônima
+const supabasePublic = createClient(
+  import.meta.env.VITE_SUPABASE_URL,
+  import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY
+);
 
 interface Message {
   id: string;
@@ -22,12 +28,12 @@ const PublicMessageWall = ({ weddingId }: PublicMessageWallProps) => {
   const isInView = useInView(ref, { once: true, margin: "-100px" });
   const { config } = useWedding();
   const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
   const [message, setMessage] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadingMessages, setLoadingMessages] = useState(true);
 
-  // Load only approved messages
   useEffect(() => {
     const loadMessages = async () => {
       if (!weddingId) {
@@ -36,10 +42,11 @@ const PublicMessageWall = ({ weddingId }: PublicMessageWallProps) => {
       }
 
       try {
-      const { data, error } = await supabase
+        const { data, error } = await supabasePublic
           .from("messages")
-          .select("id, guest_name, message, created_at, show_on_wall")
+          .select("id, guest_name, message, created_at")
           .eq("wedding_id", weddingId)
+          .eq("approved", true)
           .eq("show_on_wall", true)
           .order("created_at", { ascending: false })
           .limit(50);
@@ -85,9 +92,11 @@ const PublicMessageWall = ({ weddingId }: PublicMessageWallProps) => {
     return date.toLocaleDateString("pt-BR");
   };
 
+  const isValidEmail = (val: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!weddingId) {
       toast.error("Erro ao enviar mensagem. Por favor, recarregue a página.");
       return;
@@ -98,23 +107,44 @@ const PublicMessageWall = ({ weddingId }: PublicMessageWallProps) => {
       return;
     }
 
+    if (!email.trim() || !isValidEmail(email.trim())) {
+      toast.error("Por favor, informe um e-mail válido.");
+      return;
+    }
+
     setLoading(true);
 
     try {
-      const { error } = await supabase
+      const { data, error } = await supabasePublic
         .from("messages")
         .insert({
           wedding_id: weddingId,
           guest_name: name.trim().substring(0, 200),
+          guest_email: email.trim().substring(0, 200),
           message: message.trim().substring(0, 1000),
-        });
+          topic: "mural",
+          extension: "wall",
+          approved: true,
+          show_on_wall: true,
+          private: false,
+        })
+        .select("id, guest_name, message, created_at")
+        .single();
 
       if (error) {
         console.error("Message error:", error);
         throw error;
       }
 
+      if (data) {
+        setMessages((prev) => [
+          { id: data.id, name: data.guest_name, message: data.message, createdAt: "Agora" },
+          ...prev,
+        ]);
+      }
+
       setName("");
+      setEmail("");
       setMessage("");
       toast.success("Mensagem enviada com sucesso!");
     } catch (err) {
@@ -135,7 +165,7 @@ const PublicMessageWall = ({ weddingId }: PublicMessageWallProps) => {
           className="text-center mb-16"
         >
           <p className="text-gold uppercase tracking-[0.2em] text-sm mb-4">Mensagens</p>
-          <h2 className="section-title">Mural de Recados</h2>
+          <h2 className="section-title">Mural de Recados (Novidade)</h2>
           <div className="gold-divider mt-6" />
           <p className="section-subtitle max-w-2xl mx-auto">
             Deixe uma mensagem carinhosa para {config.coupleName}
@@ -157,11 +187,8 @@ const PublicMessageWall = ({ weddingId }: PublicMessageWallProps) => {
             </h3>
             <div className="space-y-4">
               <div>
-                <label
-                  htmlFor="messageName"
-                  className="block text-sm font-medium text-foreground mb-2"
-                >
-                  Seu Nome
+                <label htmlFor="messageName" className="block text-sm font-medium text-foreground mb-2">
+                  Seu Nome *
                 </label>
                 <input
                   type="text"
@@ -176,11 +203,27 @@ const PublicMessageWall = ({ weddingId }: PublicMessageWallProps) => {
                 />
               </div>
               <div>
-                <label
-                  htmlFor="messageText"
-                  className="block text-sm font-medium text-foreground mb-2"
-                >
-                  Sua Mensagem
+                <label htmlFor="messageEmail" className="block text-sm font-medium text-foreground mb-2">
+                  Seu E-mail *
+                </label>
+                <input
+                  type="email"
+                  id="messageEmail"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="input-wedding"
+                  placeholder="Digite seu e-mail"
+                  required
+                  maxLength={200}
+                  disabled={loading}
+                />
+                {email && !isValidEmail(email) && (
+                  <p className="text-xs text-destructive mt-1">Formato de e-mail inválido</p>
+                )}
+              </div>
+              <div>
+                <label htmlFor="messageText" className="block text-sm font-medium text-foreground mb-2">
+                  Sua Mensagem *
                 </label>
                 <textarea
                   id="messageText"
@@ -193,13 +236,10 @@ const PublicMessageWall = ({ weddingId }: PublicMessageWallProps) => {
                   disabled={loading}
                 />
               </div>
-              <p className="text-xs text-muted-foreground">
-                Sua mensagem será exibida automaticamente no mural.
-              </p>
-              <button 
-                type="submit" 
+              <button
+                type="submit"
                 className="btn-wedding w-full disabled:opacity-50 disabled:cursor-not-allowed"
-                disabled={loading || !name.trim() || !message.trim()}
+                disabled={loading || !name.trim() || !message.trim() || !isValidEmail(email)}
               >
                 {loading ? (
                   <>
@@ -216,7 +256,7 @@ const PublicMessageWall = ({ weddingId }: PublicMessageWallProps) => {
             </div>
           </motion.form>
 
-          {/* Messages Grid - only approved */}
+          {/* Messages */}
           <motion.div
             initial={{ opacity: 0, x: 30 }}
             animate={isInView ? { opacity: 1, x: 0 } : {}}
