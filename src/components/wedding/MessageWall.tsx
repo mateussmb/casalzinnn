@@ -6,7 +6,6 @@ import { createClient } from '@supabase/supabase-js';
 import { useWedding } from "@/contexts/WeddingContext";
 import { toast } from "sonner";
 
-// Cliente público explícito com anon key — garante funcionamento em aba anônima
 const supabasePublic = createClient(
   import.meta.env.VITE_SUPABASE_URL,
   import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY
@@ -15,7 +14,7 @@ const supabasePublic = createClient(
 interface Message {
   id: string;
   guest_name: string;
-  content: string;
+  message: string;
   created_at: string;
 }
 
@@ -25,7 +24,7 @@ const MessageWall = () => {
   const { wedding } = useWedding();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
-  const [message, setMessage] = useState("");
+  const [messageText, setMessageText] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -37,14 +36,14 @@ const MessageWall = () => {
       setLoading(true);
       const { data, error } = await supabasePublic
         .from("messages")
-        .select("id, guest_name, content, created_at")
+        .select("id, guest_name, message, created_at")
         .eq("wedding_id", wedding.id)
         .eq("approved", true)
         .eq("show_on_wall", true)
         .order("created_at", { ascending: false })
         .limit(50);
 
-      if (!error && data) setMessages(data);
+      if (!error && data) setMessages(data as Message[]);
       setLoading(false);
     };
 
@@ -67,7 +66,7 @@ const MessageWall = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim() || !message.trim()) return;
+    if (!name.trim() || !messageText.trim()) return;
     if (!email.trim() || !isValidEmail(email.trim())) {
       toast.error("Por favor, informe um e-mail válido");
       return;
@@ -85,20 +84,23 @@ const MessageWall = () => {
           wedding_id: wedding.id,
           guest_name: name.trim().substring(0, 100),
           guest_email: email.trim().substring(0, 200),
-          content: message.trim().substring(0, 500),
-          // approved e show_on_wall usam o DEFAULT do banco (true)
-          // não passamos explicitamente para não conflitar com RLS
+          message: messageText.trim().substring(0, 500),
+          topic: "mural",       // campo obrigatório — identifica origem
+          extension: "wall",    // campo obrigatório — identifica tipo
+          approved: true,
+          show_on_wall: true,
+          private: false,
         })
-        .select("id, guest_name, content, created_at")
+        .select("id, guest_name, message, created_at")
         .single();
 
       if (error) throw error;
 
-      if (data) setMessages((prev) => [data, ...prev]);
+      if (data) setMessages((prev) => [data as Message, ...prev]);
 
       setName("");
       setEmail("");
-      setMessage("");
+      setMessageText("");
       toast.success("Mensagem enviada com sucesso!");
     } catch (err: unknown) {
       console.error("Error submitting message:", err);
@@ -126,7 +128,6 @@ const MessageWall = () => {
         </motion.div>
 
         <div className="grid lg:grid-cols-2 gap-12">
-          {/* Formulário */}
           <motion.form
             initial={{ opacity: 0, x: -30 }}
             animate={isInView ? { opacity: 1, x: 0 } : {}}
@@ -178,20 +179,20 @@ const MessageWall = () => {
                 </label>
                 <textarea
                   id="messageText"
-                  value={message}
-                  onChange={(e) => setMessage(e.target.value)}
+                  value={messageText}
+                  onChange={(e) => setMessageText(e.target.value)}
                   className="textarea-wedding"
                   placeholder="Escreva uma mensagem para os noivos..."
                   required
                   maxLength={500}
                 />
                 <p className="text-xs text-muted-foreground mt-1 text-right">
-                  {message.length}/500
+                  {messageText.length}/500
                 </p>
               </div>
               <button
                 type="submit"
-                disabled={submitting || !name.trim() || !message.trim() || !isValidEmail(email)}
+                disabled={submitting || !name.trim() || !messageText.trim() || !isValidEmail(email)}
                 className="btn-wedding w-full disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {submitting ? (
@@ -209,7 +210,6 @@ const MessageWall = () => {
             </div>
           </motion.form>
 
-          {/* Lista de mensagens */}
           <motion.div
             initial={{ opacity: 0, x: 30 }}
             animate={isInView ? { opacity: 1, x: 0 } : {}}
@@ -249,7 +249,7 @@ const MessageWall = () => {
                     <Heart className="w-4 h-4 text-rose" />
                   </div>
                   <p className="text-muted-foreground leading-relaxed">
-                    "{msg.content}"
+                    "{msg.message}"
                   </p>
                 </motion.div>
               ))
