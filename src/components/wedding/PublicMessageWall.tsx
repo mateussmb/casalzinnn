@@ -6,7 +6,6 @@ import { useWedding } from "@/contexts/WeddingContext";
 import { createClient } from '@supabase/supabase-js';
 import { toast } from "sonner";
 
-// Cliente público sem sessão — funciona em aba anônima
 const supabasePublic = createClient(
   import.meta.env.VITE_SUPABASE_URL,
   import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY
@@ -36,11 +35,7 @@ const PublicMessageWall = ({ weddingId }: PublicMessageWallProps) => {
 
   useEffect(() => {
     const loadMessages = async () => {
-      if (!weddingId) {
-        setLoadingMessages(false);
-        return;
-      }
-
+      if (!weddingId) { setLoadingMessages(false); return; }
       try {
         const { data, error } = await supabasePublic
           .from("messages")
@@ -51,20 +46,14 @@ const PublicMessageWall = ({ weddingId }: PublicMessageWallProps) => {
           .order("created_at", { ascending: false })
           .limit(50);
 
-        if (error) {
-          console.error("Error loading messages:", error);
-          return;
-        }
-
+        if (error) { console.error("Error loading messages:", error); return; }
         if (data) {
-          setMessages(
-            data.map((m) => ({
-              id: m.id,
-              name: m.guest_name,
-              message: m.message,
-              createdAt: formatDate(m.created_at),
-            }))
-          );
+          setMessages(data.map((m: any) => ({
+            id: m.id,
+            name: m.guest_name,
+            message: m.message,
+            createdAt: formatDate(m.created_at),
+          })));
         }
       } catch (err) {
         console.error("Error loading messages:", err);
@@ -72,7 +61,6 @@ const PublicMessageWall = ({ weddingId }: PublicMessageWallProps) => {
         setLoadingMessages(false);
       }
     };
-
     loadMessages();
   }, [weddingId]);
 
@@ -83,7 +71,6 @@ const PublicMessageWall = ({ weddingId }: PublicMessageWallProps) => {
     const diffMins = Math.floor(diffMs / (1000 * 60));
     const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
     const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-
     if (diffMins < 1) return "Agora";
     if (diffMins < 60) return `${diffMins} min atrás`;
     if (diffHours < 24) return `${diffHours}h atrás`;
@@ -96,56 +83,42 @@ const PublicMessageWall = ({ weddingId }: PublicMessageWallProps) => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    if (!weddingId) {
-      toast.error("Erro ao enviar mensagem. Por favor, recarregue a página.");
-      return;
-    }
-
-    if (!name.trim() || !message.trim()) {
-      toast.error("Por favor, preencha seu nome e mensagem.");
-      return;
-    }
-
-    if (!email.trim() || !isValidEmail(email.trim())) {
-      toast.error("Por favor, informe um e-mail válido.");
-      return;
-    }
+    if (!weddingId) { toast.error("Erro ao enviar mensagem. Recarregue a página."); return; }
+    if (!name.trim() || !message.trim()) { toast.error("Preencha seu nome e mensagem."); return; }
+    if (!email.trim() || !isValidEmail(email.trim())) { toast.error("Informe um e-mail válido."); return; }
 
     setLoading(true);
-
     try {
+      const insertData: Record<string, any> = {
+        wedding_id: weddingId,
+        guest_name: name.trim().substring(0, 200),
+        message: message.trim().substring(0, 1000),
+        topic: "mural",
+        approved: true,
+        show_on_wall: true,
+        private: false,
+      };
+
+      // Colunas com nomes especiais precisam ser referenciadas como chave de objeto
+      insertData["e-mail do convidado"] = email.trim().substring(0, 200);
+      insertData["extensão"] = "wall";
+
       const { data, error } = await supabasePublic
         .from("messages")
-        .insert({
-          wedding_id: weddingId,
-          guest_name: name.trim().substring(0, 200),
-          guest_email: email.trim().substring(0, 200),
-          message: message.trim().substring(0, 1000),
-          topic: "mural",
-          extension: "wall",
-          approved: true,
-          show_on_wall: true,
-          private: false,
-        })
+        .insert(insertData)
         .select("id, guest_name, message, created_at")
         .single();
 
-      if (error) {
-        console.error("Message error:", error);
-        throw error;
-      }
+      if (error) throw error;
 
       if (data) {
         setMessages((prev) => [
-          { id: data.id, name: data.guest_name, message: data.message, createdAt: "Agora" },
+          { id: (data as any).id, name: (data as any).guest_name, message: (data as any).message, createdAt: "Agora" },
           ...prev,
         ]);
       }
 
-      setName("");
-      setEmail("");
-      setMessage("");
+      setName(""); setEmail(""); setMessage("");
       toast.success("Mensagem enviada com sucesso!");
     } catch (err) {
       console.error("Error submitting message:", err);
@@ -165,7 +138,7 @@ const PublicMessageWall = ({ weddingId }: PublicMessageWallProps) => {
           className="text-center mb-16"
         >
           <p className="text-gold uppercase tracking-[0.2em] text-sm mb-4">Mensagens</p>
-          <h2 className="section-title">Mural de Recados (Novidade)</h2>
+          <h2 className="section-title">Mural de Recados</h2>
           <div className="gold-divider mt-6" />
           <p className="section-subtitle max-w-2xl mx-auto">
             Deixe uma mensagem carinhosa para {config.coupleName}
@@ -173,7 +146,6 @@ const PublicMessageWall = ({ weddingId }: PublicMessageWallProps) => {
         </motion.div>
 
         <div className="grid lg:grid-cols-2 gap-12">
-          {/* Form */}
           <motion.form
             initial={{ opacity: 0, x: -30 }}
             animate={isInView ? { opacity: 1, x: 0 } : {}}
@@ -190,33 +162,19 @@ const PublicMessageWall = ({ weddingId }: PublicMessageWallProps) => {
                 <label htmlFor="messageName" className="block text-sm font-medium text-foreground mb-2">
                   Seu Nome *
                 </label>
-                <input
-                  type="text"
-                  id="messageName"
-                  value={name}
+                <input type="text" id="messageName" value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className="input-wedding"
-                  placeholder="Digite seu nome"
-                  required
-                  maxLength={200}
-                  disabled={loading}
-                />
+                  className="input-wedding" placeholder="Digite seu nome"
+                  required maxLength={200} disabled={loading} />
               </div>
               <div>
                 <label htmlFor="messageEmail" className="block text-sm font-medium text-foreground mb-2">
                   Seu E-mail *
                 </label>
-                <input
-                  type="email"
-                  id="messageEmail"
-                  value={email}
+                <input type="email" id="messageEmail" value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="input-wedding"
-                  placeholder="Digite seu e-mail"
-                  required
-                  maxLength={200}
-                  disabled={loading}
-                />
+                  className="input-wedding" placeholder="Digite seu e-mail"
+                  required maxLength={200} disabled={loading} />
                 {email && !isValidEmail(email) && (
                   <p className="text-xs text-destructive mt-1">Formato de e-mail inválido</p>
                 )}
@@ -225,38 +183,24 @@ const PublicMessageWall = ({ weddingId }: PublicMessageWallProps) => {
                 <label htmlFor="messageText" className="block text-sm font-medium text-foreground mb-2">
                   Sua Mensagem *
                 </label>
-                <textarea
-                  id="messageText"
-                  value={message}
+                <textarea id="messageText" value={message}
                   onChange={(e) => setMessage(e.target.value)}
                   className="textarea-wedding"
                   placeholder="Escreva uma mensagem para os noivos..."
-                  required
-                  maxLength={1000}
-                  disabled={loading}
-                />
+                  required maxLength={1000} disabled={loading} />
               </div>
-              <button
-                type="submit"
+              <button type="submit"
                 className="btn-wedding w-full disabled:opacity-50 disabled:cursor-not-allowed"
-                disabled={loading || !name.trim() || !message.trim() || !isValidEmail(email)}
-              >
+                disabled={loading || !name.trim() || !message.trim() || !isValidEmail(email)}>
                 {loading ? (
-                  <>
-                    <Loader2 className="w-5 h-5 animate-spin mr-2" />
-                    Enviando...
-                  </>
+                  <><Loader2 className="w-5 h-5 animate-spin mr-2" />Enviando...</>
                 ) : (
-                  <>
-                    Enviar Mensagem
-                    <Send className="ml-2 w-5 h-5" />
-                  </>
+                  <>Enviar Mensagem<Send className="ml-2 w-5 h-5" /></>
                 )}
               </button>
             </div>
           </motion.form>
 
-          {/* Messages */}
           <motion.div
             initial={{ opacity: 0, x: 30 }}
             animate={isInView ? { opacity: 1, x: 0 } : {}}
@@ -270,25 +214,18 @@ const PublicMessageWall = ({ weddingId }: PublicMessageWallProps) => {
             ) : messages.length === 0 ? (
               <div className="card-wedding text-center py-12">
                 <MessageCircle className="w-12 h-12 text-gold/30 mx-auto mb-4" />
-                <p className="text-muted-foreground">
-                  Seja o primeiro a deixar uma mensagem!
-                </p>
+                <p className="text-muted-foreground">Seja o primeiro a deixar uma mensagem!</p>
               </div>
             ) : (
               messages.map((msg, index) => (
-                <motion.div
-                  key={msg.id}
-                  initial={{ opacity: 0, y: 20 }}
+                <motion.div key={msg.id} initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.5, delay: index * 0.1 }}
-                  className="card-wedding"
-                >
+                  className="card-wedding">
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex items-center gap-2">
                       <div className="w-10 h-10 rounded-full bg-gold/20 flex items-center justify-center">
-                        <span className="text-gold font-serif text-lg">
-                          {msg.name.charAt(0)}
-                        </span>
+                        <span className="text-gold font-serif text-lg">{msg.name.charAt(0)}</span>
                       </div>
                       <div>
                         <h4 className="font-medium text-foreground">{msg.name}</h4>
@@ -297,9 +234,7 @@ const PublicMessageWall = ({ weddingId }: PublicMessageWallProps) => {
                     </div>
                     <Heart className="w-4 h-4 text-rose" />
                   </div>
-                  <p className="text-muted-foreground leading-relaxed">
-                    "{msg.message}"
-                  </p>
+                  <p className="text-muted-foreground leading-relaxed">"{msg.message}"</p>
                 </motion.div>
               ))
             )}
