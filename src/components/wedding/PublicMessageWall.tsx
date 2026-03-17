@@ -89,20 +89,16 @@ const PublicMessageWall = ({ weddingId }: PublicMessageWallProps) => {
 
     setLoading(true);
     try {
-      const insertData: Record<string, any> = {
-        wedding_id: weddingId,
-        guest_name: name.trim().substring(0, 200),
-        message: message.trim().substring(0, 1000),
-        topic: "mural",
-        approved: true,
-        show_on_wall: true
-      };
-
-      // Colunas com nomes especiais precisam ser referenciadas como chave de objeto
-
       const { data, error } = await supabasePublic
         .from("messages")
-        .insert(insertData)
+        .insert({
+          wedding_id: weddingId,
+          guest_name: name.trim().substring(0, 200),
+          guest_email: email.trim().substring(0, 200),
+          message: message.trim().substring(0, 1000),
+          approved: true,
+          show_on_wall: true,
+        })
         .select("id, guest_name, message, created_at")
         .single();
 
@@ -110,7 +106,12 @@ const PublicMessageWall = ({ weddingId }: PublicMessageWallProps) => {
 
       if (data) {
         setMessages((prev) => [
-          { id: (data as any).id, name: (data as any).guest_name, message: (data as any).message, createdAt: "Agora" },
+          {
+            id: (data as any).id,
+            name: (data as any).guest_name,
+            message: (data as any).message,
+            createdAt: "Agora",
+          },
           ...prev,
         ]);
       }
