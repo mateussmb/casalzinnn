@@ -4,6 +4,7 @@ import { useRef } from "react";
 import { Calendar, Clock, MapPin, Church, PartyPopper, ExternalLink } from "lucide-react";
 import venueImage from "@/assets/venue.jpg";
 
+
 interface EventInfo {
   title: string;
   icon: React.ReactNode;
