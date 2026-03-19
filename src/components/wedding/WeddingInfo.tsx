@@ -1,7 +1,7 @@
 import { motion } from "framer-motion";
 import { useInView } from "framer-motion";
 import { useRef } from "react";
-import { Calendar, Clock, MapPin, Church, PartyPopper } from "lucide-react";
+import { Calendar, Clock, MapPin, Church, PartyPopper, ExternalLink } from "lucide-react";
 import venueImage from "@/assets/venue.jpg";
 
 interface EventInfo {
@@ -38,6 +38,10 @@ const WeddingInfo = () => {
     mapUrl: "https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3657.1975737381287!2d-46.66955388502208!3d-23.56168198468096!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0%3A0x0!2zMjPCsDMzJzQyLjEiUyA0NsKwMzknNTYuMyJX!5e0!3m2!1spt-BR!2sbr!4v1234567890",
   };
 
+  // Converte URL do embed para URL de busca do Google Maps
+  const getDirectionsUrl = (address: string) =>
+    `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
+
   const EventCard = ({ event, delay }: { event: EventInfo; delay: number }) => (
     <motion.div
       initial={{ opacity: 0, y: 30 }}
@@ -52,36 +56,42 @@ const WeddingInfo = () => {
         <h3 className="font-serif text-2xl text-foreground">{event.title}</h3>
       </div>
 
-      <div className="space-y-4 mb-6">
+      <div className="space-y-4 mb-8">
         <div className="flex items-center gap-3 text-muted-foreground">
-          <Calendar className="w-5 h-5 text-gold" />
+          <Calendar className="w-5 h-5 text-gold flex-shrink-0" />
           <span>{event.date}</span>
         </div>
         <div className="flex items-center gap-3 text-muted-foreground">
-          <Clock className="w-5 h-5 text-gold" />
+          <Clock className="w-5 h-5 text-gold flex-shrink-0" />
           <span>{event.time}</span>
         </div>
         <div className="flex items-start gap-3 text-muted-foreground">
           <MapPin className="w-5 h-5 text-gold flex-shrink-0 mt-0.5" />
           <div>
             <p className="font-medium text-foreground">{event.location}</p>
-            <p className="text-sm">{event.address}</p>
+            <p className="text-sm mt-0.5">{event.address}</p>
           </div>
         </div>
       </div>
 
-      <div className="rounded-lg overflow-hidden h-48">
-        <iframe
-          src={event.mapUrl}
-          width="100%"
-          height="100%"
-          style={{ border: 0 }}
-          allowFullScreen
-          loading="lazy"
-          referrerPolicy="no-referrer-when-downgrade"
-          title={`Mapa - ${event.title}`}
-        />
-      </div>
+      {/* Botão de mapa elegante no lugar do iframe */}
+      <a
+        href={getDirectionsUrl(event.address)}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="group flex items-center justify-between w-full px-5 py-4 rounded-xl border border-gold/30 bg-gold/5 hover:bg-gold/10 hover:border-gold/60 transition-all duration-300"
+      >
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-full bg-gold/15 group-hover:bg-gold/25 transition-colors">
+            <MapPin className="w-4 h-4 text-gold" />
+          </div>
+          <div>
+            <p className="text-sm font-medium text-foreground">Ver no mapa</p>
+            <p className="text-xs text-muted-foreground">Abrir no Google Maps</p>
+          </div>
+        </div>
+        <ExternalLink className="w-4 h-4 text-gold/60 group-hover:text-gold transition-colors" />
+      </a>
     </motion.div>
   );
 
