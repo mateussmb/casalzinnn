@@ -205,9 +205,6 @@ const WeddingPage = () => {
         // Preload critical images (hero + story photos)
         const criticalImages = [
           weddingData.hero_image_url,
-          weddingData.story_photo_1,
-          weddingData.story_photo_2,
-          weddingData.story_photo_3,
         ].filter(Boolean) as string[];
 
         if (criticalImages.length > 0) {
